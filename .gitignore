@@ -1,0 +1,37 @@
+# Dependências
+node_modules/
+.pnp
+.pnp.js
+vendor/
+
+# Builds / saída
+dist/
+build/
+out/
+.next/
+*.tsbuildinfo
+
+# Variáveis de ambiente (segredos)
+.env
+.env.local
+.env.*.local
+*.key
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores / IDEs
+.vscode/
+.idea/
+*.swp
+
+# Claude Code (configurações locais da máquina)
+.claude/settings.local.json
