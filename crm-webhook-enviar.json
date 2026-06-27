@@ -1,0 +1,94 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "posto-crm-send",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "crm-0001-webhook",
+      "name": "CRM Enviar",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-600, 300],
+      "webhookId": "posto-crm-send"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $input.first().json.body || $input.first().json;\nconst telefone = String(b.telefone || '').replace(/[^0-9]/g, '');\nconst mensagem = String(b.mensagem || '');\nreturn [{ json: { telefone, mensagem } }];"
+      },
+      "id": "crm-0002-parse",
+      "name": "Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-380, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update clientes set pausar_ia = true, atualizado_em = now() where telefone = $1",
+        "options": { "queryReplacement": "={{ $('Parse').item.json.telefone }}" }
+      },
+      "id": "crm-0003-pausar",
+      "name": "Pausar IA",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [-160, 300],
+      "credentials": { "postgres": { "id": "IBtVCAaHmDGpnVnk", "name": "Postgres Posto" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const t = $('Parse').first().json;\nreturn [{ json: { session_id: t.telefone, message: { type: 'ai', content: t.mensagem, tool_calls: [], additional_kwargs: {}, response_metadata: {}, invalid_tool_calls: [] } } }];"
+      },
+      "id": "crm-0004-montar",
+      "name": "Montar Linha Chat",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [60, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "mode": "list", "value": "public" },
+        "table": { "__rl": true, "mode": "list", "value": "n8n_chat_histories" },
+        "columns": { "mappingMode": "autoMapInputData", "value": null, "matchingColumns": [], "schema": [] },
+        "options": {}
+      },
+      "id": "crm-0005-registrar",
+      "name": "Registrar no Chat",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [280, 300],
+      "credentials": { "postgres": { "id": "IBtVCAaHmDGpnVnk", "name": "Postgres Posto" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thato.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "token", "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef" } ] },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "number", "value": "={{ $('Parse').item.json.telefone }}" },
+            { "name": "text", "value": "={{ $('Parse').item.json.mensagem }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "crm-0006-enviar",
+      "name": "Enviar Texto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300]
+    }
+  ],
+  "connections": {
+    "CRM Enviar": { "main": [ [ { "node": "Parse", "type": "main", "index": 0 } ] ] },
+    "Parse": { "main": [ [ { "node": "Pausar IA", "type": "main", "index": 0 } ] ] },
+    "Pausar IA": { "main": [ [ { "node": "Montar Linha Chat", "type": "main", "index": 0 } ] ] },
+    "Montar Linha Chat": { "main": [ [ { "node": "Registrar no Chat", "type": "main", "index": 0 } ] ] },
+    "Registrar no Chat": { "main": [ [ { "node": "Enviar Texto", "type": "main", "index": 0 } ] ] }
+  }
+}

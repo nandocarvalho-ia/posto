@@ -1,0 +1,248 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=sending:{{ $('Parse Webhook').first().json.telefone }}",
+        "value": "1",
+        "expire": true,
+        "ttl": 120
+      },
+      "id": "a1b2c3d4-0001-4a00-9000-000000000001",
+      "name": "REDIS SET LOCK",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [3088, 112],
+      "credentials": {
+        "redis": {
+          "id": "uBgAIbBF16dqUpzr",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  const rawOutput = $('Nanda').first().json.output || $input.first().json.output || $input.first().json.text || '';\n  const MIN_DELAY = 1000;\n  const MAX_DELAY = 3500;\n  const PER_CHAR = 30;\n  const text = rawOutput.replace(/\\\\n/g, '\\n').replace(/\\r\\n/g, '\\n');\n\n  function detectFormat(s) {\n    const t = s.trim().toLowerCase();\n    if (/\\.(jpg|jpeg|png|gif|webp)(\\?|$)/.test(t)) return 'imagem';\n    if (/\\.(mp4|avi|mov|webm)(\\?|$)/.test(t)) return 'video';\n    if (/\\.(opus|mp3|wav|ogg|m4a)(\\?|$)/.test(t)) return 'audio';\n    return 'texto';\n  }\n  function stripIndicators(s) {\n    return s.replace(/\\[(Audio|Imagem|Video|PDF|Documento)\\]/gi, '').trim();\n  }\n  function calcDelay(len) {\n    return Math.min(MAX_DELAY, Math.max(MIN_DELAY, Math.round(len * PER_CHAR)));\n  }\n\n  let cleanText = text;\n\n  const blocoUnicoMap = {};\n  let blocoIdx = 0;\n  cleanText = cleanText.replace(/\"?\\[BLOCO_UNICO\\]([\\s\\S]*?)\\[\\/BLOCO_UNICO\\]\"?/g, (match, inner) => {\n    const placeholder = `__BLOCO_UNICO_${blocoIdx}__`;\n    blocoUnicoMap[placeholder] = inner.trim();\n    blocoIdx++;\n    return placeholder;\n  });\n\n  const captionMap = {};\n  let captionIdx = 0;\n  cleanText = cleanText.replace(/\\[CAPTION\\]([\\s\\S]*?)\\[\\/CAPTION\\]/g, (match, inner) => {\n    const placeholder = `__CAPTION_${captionIdx}__`;\n    captionMap[placeholder] = inner.trim();\n    captionIdx++;\n    return placeholder;\n  });\n\n  let rawParts;\n  if (cleanText.includes('---BLOCO---')) {\n    const blocos = cleanText.split('---BLOCO---');\n    rawParts = [];\n    for (const bloco of blocos) {\n      const trimmed = bloco.trim();\n      if (!trimmed) continue;\n      if (trimmed.startsWith('__BLOCO_UNICO_')) {\n        rawParts.push(trimmed);\n      } else {\n        const lines = trimmed.split(/\\n+/).map(s => s.trim()).filter(Boolean);\n        rawParts.push(...lines);\n      }\n    }\n  } else {\n    rawParts = cleanText.split(/\\n+/).map(s => s.trim()).filter(Boolean);\n  }\n\n  const result = [];\n  let i = 0;\n  while (i < rawParts.length) {\n    const part = rawParts[i];\n    if (blocoUnicoMap[part] !== undefined) {\n      const conteudo = blocoUnicoMap[part];\n      result.push({ json: { conteudo, formato: 'texto', delay: calcDelay(conteudo.length), dinamico: false } });\n      i++;\n      continue;\n    }\n    const cleaned = stripIndicators(part);\n    if (!cleaned) { i++; continue; }\n    if (cleaned.startsWith('[CAPTION]')) {\n      const captionText = cleaned.slice('[CAPTION]'.length).trim();\n      if (result.length > 0 && result[result.length - 1].json.formato === 'imagem') {\n        result[result.length - 1].json.caption = captionText;\n      }\n      i++;\n      continue;\n    }\n    const formato = cleaned.startsWith('http') ? detectFormat(cleaned) : 'texto';\n    if (formato === 'imagem' && i + 1 < rawParts.length) {\n      const nextPart = rawParts[i + 1].trim();\n      if (captionMap[nextPart] !== undefined) {\n        result.push({ json: { conteudo: cleaned, formato: 'imagem', caption: captionMap[nextPart], delay: 5000, dinamico: false } });\n        i += 2;\n        continue;\n      }\n    }\n    const delay = formato === 'texto' ? calcDelay(cleaned.length) : 5000;\n    result.push({ json: { conteudo: cleaned, formato, delay, dinamico: false } });\n    i++;\n  }\n\n  if (result.length === 0) {\n    result.push({ json: { conteudo: rawOutput || 'Opa! Como posso te ajudar? 😊', formato: 'texto', delay: MIN_DELAY, dinamico: false } });\n  }\n  const vistos = new Set();\n  let finalResult = [];\n  for (const r of result) {\n    const chave = String(r.json.conteudo || '').trim();\n    if (chave && vistos.has(chave)) continue;\n    if (chave) vistos.add(chave);\n    finalResult.push(r);\n  }\n  const MAX_MSGS = 7;\n  if (finalResult.length > MAX_MSGS) finalResult = finalResult.slice(0, MAX_MSGS);\n  return finalResult;\n} catch(e) {\n  return [{ json: { conteudo: 'Erro ao processar resposta', formato: 'texto', delay: 3500, dinamico: false, erro: e.message } }];\n}"
+      },
+      "id": "a1b2c3d4-0002-4a00-9000-000000000002",
+      "name": "PREPARA RESPOSTA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3312, 112]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "a1b2c3d4-0003-4a00-9000-000000000003",
+      "name": "LOOP DE ENVIO",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [3536, 112]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                "conditions": [ { "leftValue": "={{ $json.formato }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "texto" } ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "texto"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                "conditions": [ { "leftValue": "={{ $json.formato }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "audio" } ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                "conditions": [ { "leftValue": "={{ $json.formato }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "imagem" } ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "imagem"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                "conditions": [ { "leftValue": "={{ $json.formato }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "video" } ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "video"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0004-4a00-9000-000000000004",
+      "name": "SWITCH FORMATO",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [3760, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thato.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "token", "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef" } ] },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "number", "value": "={{ $('Parse Webhook').first().json.telefone }}" },
+            { "name": "text", "value": "={{ $json.conteudo }}" },
+            { "name": "delay", "value": "={{ $json.delay }}" },
+            { "name": "linkPreview", "value": "true" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0005-4a00-9000-000000000005",
+      "name": "ENVIAR TEXTO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [4000, 16]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thato.uazapi.com/send/media",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "token", "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef" } ] },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "number", "value": "={{ $('Parse Webhook').first().json.telefone }}" },
+            { "name": "type", "value": "=ptt" },
+            { "name": "file", "value": "={{ $json.conteudo }}" },
+            { "name": "delay", "value": "={{ $json.delay }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0006-4a00-9000-000000000006",
+      "name": "ENVIAR AUDIO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [4000, 192]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thato.uazapi.com/send/media",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "token", "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef" } ] },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "number", "value": "={{ $('Parse Webhook').first().json.telefone }}" },
+            { "name": "type", "value": "=image" },
+            { "name": "file", "value": "={{ $json.conteudo }}" },
+            { "name": "text", "value": "={{ $json.caption }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0007-4a00-9000-000000000007",
+      "name": "ENVIAR IMAGEM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [4000, 368]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thato.uazapi.com/send/media",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "token", "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef" } ] },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "number", "value": "={{ $('Parse Webhook').first().json.telefone }}" },
+            { "name": "type", "value": "=video" },
+            { "name": "file", "value": "={{ $json.conteudo }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0008-4a00-9000-000000000008",
+      "name": "ENVIAR VIDEO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [4000, 544]
+    },
+    {
+      "parameters": { "amount": 1 },
+      "id": "a1b2c3d4-0009-4a00-9000-000000000009",
+      "name": "AGUARDAR DELAY",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [4240, 320],
+      "webhookId": "nanda-wait-delay"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": { "fieldToAggregate": [ {} ] },
+        "options": {}
+      },
+      "id": "a1b2c3d4-000a-4a00-9000-00000000000a",
+      "name": "Aggregate",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [3760, 112]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=sending:{{ $('Parse Webhook').first().json.telefone }}"
+      },
+      "id": "a1b2c3d4-000b-4a00-9000-00000000000b",
+      "name": "REDIS DEL LOCK",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [3984, 112],
+      "credentials": {
+        "redis": {
+          "id": "uBgAIbBF16dqUpzr",
+          "name": "Redis account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "REDIS SET LOCK": { "main": [ [ { "node": "PREPARA RESPOSTA", "type": "main", "index": 0 } ] ] },
+    "PREPARA RESPOSTA": { "main": [ [ { "node": "LOOP DE ENVIO", "type": "main", "index": 0 } ] ] },
+    "LOOP DE ENVIO": {
+      "main": [
+        [ { "node": "Aggregate", "type": "main", "index": 0 } ],
+        [ { "node": "SWITCH FORMATO", "type": "main", "index": 0 } ]
+      ]
+    },
+    "SWITCH FORMATO": {
+      "main": [
+        [ { "node": "ENVIAR TEXTO", "type": "main", "index": 0 } ],
+        [ { "node": "ENVIAR AUDIO", "type": "main", "index": 0 } ],
+        [ { "node": "ENVIAR IMAGEM", "type": "main", "index": 0 } ],
+        [ { "node": "ENVIAR VIDEO", "type": "main", "index": 0 } ]
+      ]
+    },
+    "ENVIAR TEXTO": { "main": [ [ { "node": "AGUARDAR DELAY", "type": "main", "index": 0 } ] ] },
+    "ENVIAR AUDIO": { "main": [ [ { "node": "AGUARDAR DELAY", "type": "main", "index": 0 } ] ] },
+    "ENVIAR IMAGEM": { "main": [ [ { "node": "AGUARDAR DELAY", "type": "main", "index": 0 } ] ] },
+    "ENVIAR VIDEO": { "main": [ [ { "node": "AGUARDAR DELAY", "type": "main", "index": 0 } ] ] },
+    "AGUARDAR DELAY": { "main": [ [ { "node": "LOOP DE ENVIO", "type": "main", "index": 0 } ] ] },
+    "Aggregate": { "main": [ [ { "node": "REDIS DEL LOCK", "type": "main", "index": 0 } ] ] },
+    "REDIS DEL LOCK": { "main": [ [] ] }
+  }
+}

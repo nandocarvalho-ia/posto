@@ -1,0 +1,62 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Neutros levemente esverdeados (claro, quase branco) */
+  --background: 0.966 0.004 145;
+  --foreground: 0.24 0.018 155;
+  --card: 0.996 0.002 145;
+  --secondary: 0.932 0.008 150;
+  --muted: 0.938 0.008 150;
+  --muted-foreground: 0.5 0.018 152;
+  --border: 0.9 0.008 150;
+  --ring: 0.55 0.12 85;
+
+  /* Marca: VERDE profundo (primary) + DOURADO (accent) — paleta do site */
+  --primary: 0.45 0.11 158;
+  --primary-foreground: 0.985 0.012 140;
+  --accent: 0.8 0.135 85;
+  --accent-foreground: 0.3 0.06 158;
+
+  /* Status: tom vivo p/ pontos/fills, tom -ink p/ texto (AA) */
+  --success: 0.6 0.14 150; --success-ink: 0.46 0.13 152;
+  --warning: 0.78 0.15 78; --warning-ink: 0.55 0.12 72;
+  --info: 0.62 0.11 235; --info-ink: 0.48 0.11 245;
+  --destructive: 0.58 0.2 25;
+
+  --radius: 0.7rem;
+  --shadow-card: 0 1px 2px oklch(0.4 0.04 155 / 0.05), 0 6px 16px -6px oklch(0.4 0.04 155 / 0.08);
+  --shadow-lift: 0 2px 6px oklch(0.4 0.04 155 / 0.08), 0 14px 30px -10px oklch(0.4 0.04 155 / 0.16);
+
+  /* Zona escura (sidebar) = verde profundo + glow dourado */
+  --sidebar: 0.3 0.07 158;
+  --sidebar-foreground: 0.95 0.018 130;
+  --sidebar-muted: 0.74 0.04 140;
+  --sidebar-accent: 0.36 0.072 158;
+  --shadow-glow: 0 4px 18px -2px oklch(0.8 0.135 85 / 0.5);
+}
+
+* { border-color: oklch(var(--border)); }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: oklch(var(--background));
+  color: oklch(var(--foreground));
+  font-family: Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+.num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: oklch(0.82 0.02 150); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: oklch(0.74 0.025 150); background-clip: content-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

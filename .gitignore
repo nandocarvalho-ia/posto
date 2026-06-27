@@ -17,6 +17,10 @@ out/
 .env.*.local
 *.key
 
+# Segredos / tokens (nunca versionar)
+token_api_n8n.txt
+*.token.txt
+
 # Logs
 *.log
 npm-debug.log*

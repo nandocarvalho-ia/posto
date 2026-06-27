@@ -1,0 +1,92 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+          "conditions": [
+            { "leftValue": "={{ $('Parse Webhook').item.json.tipo_mensagem }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "audiomessage" }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "tts-0001-if-audio",
+      "name": "Responder em Áudio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [2900, 460]
+    },
+    {
+      "parameters": {
+        "jsCode": "let out = String($('Nanda').first().json.output || '');\nout = out.split('[BLOCO_UNICO]').join('').split('[/BLOCO_UNICO]').join('').split('**').join('').split('*').join('');\nout = out.split(String.fromCharCode(13)).join(' ').split(String.fromCharCode(10)).join(' ');\nwhile (out.indexOf('  ') !== -1) out = out.split('  ').join(' ');\nout = out.trim();\nif (out.length > 700) out = out.slice(0, 700);\nconst NL = String.fromCharCode(10);\nconst profile = 'Voz divertida com sotaque do interior da Bahia, no Brasil';\nconst director = 'Estilo: tom claro, alegre e acolhedor (sorriso na voz); ritmo rapido e energetico, sem pausas longas.';\nconst tts_prompt = 'Leia a transcricao a seguir conforme o perfil de audio e a nota de direcao.' + NL + NL + '# Audio Profile' + NL + profile + NL + NL + '# Director note' + NL + director + NL + NL + '## Transcript:' + NL + out;\nreturn [{ json: { tts_prompt: tts_prompt, telefone: $('Parse Webhook').first().json.telefone } }];"
+      },
+      "id": "tts-0002-preparar",
+      "name": "Preparar Texto TTS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3120, 360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-goog-api-key", "value": "SUA_GEMINI_API_KEY" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"contents\": [ { \"role\": \"user\", \"parts\": [ { \"text\": $json.tts_prompt } ] } ], \"generationConfig\": { \"temperature\": 1, \"responseModalities\": [\"AUDIO\"], \"speechConfig\": { \"voiceConfig\": { \"prebuiltVoiceConfig\": { \"voiceName\": \"Autonoe\" } } } } } }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "tts-0003-gemini",
+      "name": "Gemini TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3340, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nlet part = {};\ntry { part = resp.candidates[0].content.parts[0].inlineData; } catch (e) { part = {}; }\nconst b64 = part.data || '';\nconst mime = part.mimeType || 'audio/L16;rate=24000';\nlet rate = 24000, bits = 16;\nfor (const s of mime.split(';')) {\n  const seg = s.trim();\n  if (seg.toLowerCase().indexOf('rate=') === 0) { const v = parseInt(seg.split('=')[1]); if (v) rate = v; }\n  if (seg.indexOf('audio/L') === 0) { const v = parseInt(seg.split('L')[1]); if (v) bits = v; }\n}\nif (!b64) { return [{ json: { erro: 'TTS sem audio', telefone: $('Parse Webhook').first().json.telefone } }]; }\nconst pcm = Buffer.from(b64, 'base64');\nconst numChannels = 1;\nconst bytesPerSample = bits / 8;\nconst blockAlign = numChannels * bytesPerSample;\nconst byteRate = rate * blockAlign;\nconst dataSize = pcm.length;\nconst header = Buffer.alloc(44);\nheader.write('RIFF', 0);\nheader.writeUInt32LE(36 + dataSize, 4);\nheader.write('WAVE', 8);\nheader.write('fmt ', 12);\nheader.writeUInt32LE(16, 16);\nheader.writeUInt16LE(1, 20);\nheader.writeUInt16LE(numChannels, 22);\nheader.writeUInt32LE(rate, 24);\nheader.writeUInt32LE(byteRate, 28);\nheader.writeUInt16LE(blockAlign, 32);\nheader.writeUInt16LE(bits, 34);\nheader.write('data', 36);\nheader.writeUInt32LE(dataSize, 40);\nconst wav = Buffer.concat([header, pcm]);\nconst wavB64 = wav.toString('base64');\nreturn [{ json: { telefone: $('Parse Webhook').first().json.telefone, audioBase64: wavB64, dataUri: 'data:audio/wav;base64,' + wavB64 } }];"
+      },
+      "id": "tts-0004-pcm-wav",
+      "name": "PCM para WAV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3560, 360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thato.uazapi.com/send/media",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "token", "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef" } ] },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "number", "value": "={{ $json.telefone }}" },
+            { "name": "type", "value": "ptt" },
+            { "name": "file", "value": "={{ $json.dataUri }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tts-0005-enviar-audio",
+      "name": "ENVIAR AUDIO (TTS)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3780, 360]
+    }
+  ],
+  "connections": {
+    "Responder em Áudio?": { "main": [ [ { "node": "Preparar Texto TTS", "type": "main", "index": 0 } ], [] ] },
+    "Preparar Texto TTS": { "main": [ [ { "node": "Gemini TTS", "type": "main", "index": 0 } ] ] },
+    "Gemini TTS": { "main": [ [ { "node": "PCM para WAV", "type": "main", "index": 0 } ] ] },
+    "PCM para WAV": { "main": [ [ { "node": "ENVIAR AUDIO (TTS)", "type": "main", "index": 0 } ] ] },
+    "ENVIAR AUDIO (TTS)": { "main": [ [] ] }
+  }
+}

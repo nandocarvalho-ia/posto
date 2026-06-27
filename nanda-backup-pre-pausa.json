@@ -1,0 +1,5098 @@
+{
+  "updatedAt": "2026-06-14T21:38:31.209Z",
+  "createdAt": "2026-06-06T20:16:49.115Z",
+  "id": "KHrZrnx9PAZfkS3F",
+  "name": "Posto Carvalho - Atendimento (Nanda)",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "posto-inbound",
+        "options": {}
+      },
+      "id": "591f1535-438e-4315-88dc-cb051b394164",
+      "name": "Receber Mensagem",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2336,
+        0
+      ],
+      "webhookId": "a48d24aa-85a1-4b63-afce-cc487ad8da14"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst body = item.json.body || item.json;\nconst msg = body.message || {};\nconst chatid = msg.chatid || '';\nconst telefone = chatid.endsWith('@lid') ? String(msg.sender_pn || '').split('@')[0] : String(chatid).split('@')[0];\nconst fromMe = msg.fromMe === true;\nconst tipo = String(msg.messageType || '').toLowerCase();\nconst rawContent = msg.content || msg.text || '';\nconst mensagem = typeof rawContent === 'string' ? rawContent : (rawContent.text || '');\nconst nome = msg.senderName || '';\nconst message_id = msg.messageid || '';\nconst last8 = String(telefone).slice(-8);\nconst ehTexto = tipo.indexOf('conversation') !== -1 || tipo.indexOf('text') !== -1 || tipo === '';\nconst ehDelete = String(mensagem).trim().toLowerCase() === '/delete';\n\n// --- canal da mensagem (para o prompt da Fernanda) ---\nconst ehAudio = tipo.indexOf('audio') !== -1;\nconst canal_mensagem = ehAudio ? 'audio' : 'texto';\nconst instrucao_canal = ehAudio\n  ? 'A mensagem atual do cliente chegou por ÁUDIO. NÃO peça para seguir o Instagram nem cite/envie link do site nesta resposta (links e @ ficam horríveis quando lidos em voz). Responda apenas o essencial.'\n  : 'A mensagem atual do cliente chegou por TEXTO.';\n\nreturn [{ json: { telefone, last8, from_me: fromMe ? 'sim' : 'nao', tipo_mensagem: tipo, mensagem, nome, message_id, eh_texto: ehTexto ? 'sim' : 'nao', eh_delete: ehDelete ? 'sim' : 'nao', canal_mensagem, instrucao_canal } }];"
+      },
+      "id": "931a088a-670b-416e-9968-83de1040dfce",
+      "name": "Parse Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2112,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.from_me }}",
+              "rightValue": "sim",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5d4adf2c-73ad-49d1-875b-6040245ef4e0",
+      "name": "Eh from_me?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1664,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=posto:pausa:{{ $json.last8 }}",
+        "value": "1",
+        "keyType": "string"
+      },
+      "id": "f6af174e-ea34-4af9-bf8d-c57430ceb340",
+      "name": "Pausar Contato",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -1456,
+        -304
+      ],
+      "credentials": {
+        "redis": {
+          "id": "uBgAIbBF16dqUpzr",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.eh_delete }}",
+              "rightValue": "sim",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4087cb24-89a1-49c7-a741-6b24d9a5b0e3",
+      "name": "Eh /delete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1440,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=posto:pausa:{{ $json.last8 }}"
+      },
+      "id": "616caa8b-7412-476a-901f-0ca53331f2de",
+      "name": "Limpar Pausa",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -1056,
+        -416
+      ],
+      "credentials": {
+        "redis": {
+          "id": "uBgAIbBF16dqUpzr",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "delete from n8n_chat_histories where session_id = $1",
+        "options": {
+          "queryReplacement": "={{ $('Parse Webhook').item.json.telefone }}"
+        }
+      },
+      "id": "a1095e2e-bbf3-47ee-b2e3-9e9f0d21656b",
+      "name": "Limpar Memoria",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -832,
+        -416
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "IBtVCAaHmDGpnVnk",
+          "name": "Postgres Posto"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thato.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Parse Webhook').item.json.telefone }}"
+            },
+            {
+              "name": "text",
+              "value": "Memoria resetada. Bons testes!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "159921ce-e002-42f0-89d0-70a143ab898c",
+      "name": "Avisar Reset",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -608,
+        -416
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "pausado",
+        "key": "=posto:pausa:{{ $('Parse Webhook').item.json.last8 }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "id": "f25b16a6-9a02-4dfe-9587-a4fd72a1818e",
+      "name": "Checar Pausa",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        384,
+        112
+      ],
+      "credentials": {
+        "redis": {
+          "id": "uBgAIbBF16dqUpzr",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.pausado }}",
+              "rightValue": "1",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "79d3aefa-45bd-4206-8a01-4d0c20246d0f",
+      "name": "Esta pausado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        608,
+        112
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "8359e606-ae77-4fc3-94fe-5ada2b867a12",
+      "name": "Fim (pausado)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        832,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=posto:last:{{ $('Parse Webhook').item.json.last8 }}",
+        "value": "={{ $('Parse Webhook').item.json.message_id }}",
+        "keyType": "string"
+      },
+      "id": "70551f3c-1a54-4659-95b6-6ddbf8e9980a",
+      "name": "Marcar Ultima",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        832,
+        208
+      ],
+      "credentials": {
+        "redis": {
+          "id": "uBgAIbBF16dqUpzr",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "id": "5188a835-1b9b-49a2-8c0d-f9115789fd7a",
+      "name": "Aguardar Debounce",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1056,
+        208
+      ],
+      "webhookId": "8536f067-06a4-42c1-8dc9-3b5c4a71ff5e"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "ultima",
+        "key": "=posto:last:{{ $('Parse Webhook').item.json.last8 }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "id": "de1be232-9603-439e-94e9-b102dfce40a0",
+      "name": "Ler Ultima",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        208
+      ],
+      "credentials": {
+        "redis": {
+          "id": "uBgAIbBF16dqUpzr",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ultima }}",
+              "rightValue": "={{ $('Parse Webhook').item.json.message_id }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6de946b2-2910-44ec-a82c-0ead57ed6bab",
+      "name": "Sou a ultima?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1504,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select c.nome, c.interesse, c.cidade, c.observacoes from (select $1::text as last_8) k left join clientes c on c.last_8 = k.last_8 limit 1",
+        "options": {
+          "queryReplacement": "={{ $('Parse Webhook').item.json.last8 }}"
+        }
+      },
+      "id": "8cce4c68-5e96-4b3d-91bf-eb94aca48f2d",
+      "name": "Buscar Cliente",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1728,
+        112
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "IBtVCAaHmDGpnVnk",
+          "name": "Postgres Posto"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select identidade, conhecimento, regras_preco, regras_finais, regra_fundamental from prompt_posto where tipo = 'padrao' limit 1",
+        "options": {}
+      },
+      "id": "15324da8-45d1-4cbd-8c26-66488ef51d56",
+      "name": "Pegar Prompt",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1952,
+        112
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "IBtVCAaHmDGpnVnk",
+          "name": "Postgres Posto"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select coalesce(json_agg(json_build_object('nome', nome_exibicao, 'sigla', sigla, 'valor', valor, 'ativo', ativo) order by produto), '[]'::json) as precos from precos",
+        "options": {}
+      },
+      "id": "220bebaa-d115-4485-bc80-fbe8e3b3445b",
+      "name": "Pegar Precos",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2176,
+        112
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "IBtVCAaHmDGpnVnk",
+          "name": "Postgres Posto"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const NL = String.fromCharCode(10);\nconst p = $('Pegar Prompt').first().json;\nconst precos = $('Pegar Precos').first().json.precos || [];\nconst cli = $('Buscar Cliente').first().json || {};\nconst pw = $('Parse Webhook').first().json;\n// Mensagem final: usa a tratada (áudio transcrito / imagem descrita / texto) com fallback\nlet mensagemFinal = pw.mensagem;\ntry { const mt = $('Mensagem Tratada').first().json; if (mt && mt.mensagem) mensagemFinal = mt.mensagem; } catch (e) {}\nlet system = [p.identidade, p.conhecimento, p.regras_preco, p.regras_finais, p.regra_fundamental].filter(Boolean).join(NL + NL);\n// ---- Preços atuais ----\nconst arr = Array.isArray(precos) ? precos : [];\nconst linhas = arr.map(function (x) {\n  const v = Number(x.valor);\n  const disp = (v > 0 && x.ativo) ? ('R$ ' + v.toFixed(2).replace('.', ',')) : 'a confirmar no posto';\n  return '- ' + x.nome + ' (' + x.sigla + '): ' + disp;\n}).join(NL);\n// ---- Data/hora local (Bahia) + período comercial ----\nlet agora;\ntry { agora = $now.setZone('America/Bahia'); } catch (e) { agora = $now; }\nlet dataHora, hora;\ntry { dataHora = agora.toFormat('dd/LL/yyyy HH:mm'); hora = agora.hour; }\ncatch (e) { const d = new Date(); hora = (d.getUTCHours() + 21) % 24; dataHora = d.toISOString(); }\nconst comercial = (hora >= 6 && hora < 18) ? 'sim' : 'nao';\n// ---- Identificação da pessoa pelo telefone (com e sem 9o digito) ----\nconst tel = String(pw.telefone || '');\nconst autorizados = {\n  '5575992312986': 'Nando', '557592312986': 'Nando',\n  '5573988236527': 'Dalva', '557388236527': 'Dalva',\n  '5573981809680': 'Bruno', '557381809680': 'Bruno'\n};\nconst donos = { '5573991378301': 'Seu Fernando', '557391378301': 'Seu Fernando' };\nlet quemE = 'Cliente comum (lead) - siga o script normal de atendimento';\nlet autorizadoAlterar = 'nao';\nif (donos[tel]) {\n  quemE = 'Seu Fernando (dono do posto)';\n} else if (autorizados[tel]) {\n  quemE = autorizados[tel] + ' (equipe - numero autorizado a alterar precos)';\n  autorizadoAlterar = 'sim';\n}\n// ---- Canal da mensagem atual (texto x audio) ----\nconst instrucaoCanal = pw.instrucao_canal || 'A mensagem atual do cliente chegou por TEXTO.';\nconst ctxCanal = NL + NL + '=== CANAL DA MENSAGEM ATUAL ===' + NL + instrucaoCanal;\nconst ctxLoja = NL + NL + '=== PRECOS ATUAIS (fonte oficial, use exatamente estes; nunca invente) ===' + NL + linhas;\nconst ctxAmbiente = NL + NL + '=== CONTEXTO ATUAL ===' + NL +\n  'Data/hora (Bahia): ' + dataHora + NL +\n  'Horario comercial (06h-18h): ' + comercial + NL +\n  'Telefone do cliente: ' + tel + NL +\n  'Quem e: ' + quemE + NL +\n  'Autorizado a alterar precos: ' + autorizadoAlterar;\nconst conhecido = [];\nif (cli && cli.nome) conhecido.push('nome: ' + cli.nome);\nif (cli && cli.cidade) conhecido.push('cidade: ' + cli.cidade);\nif (cli && cli.interesse) conhecido.push('interesse: ' + cli.interesse);\nif (cli && cli.observacoes) conhecido.push('observacoes: ' + cli.observacoes);\nconst ctxCli = conhecido.length ? (NL + NL + '=== O QUE JA SABEMOS DESTE CLIENTE ===' + NL + conhecido.join(NL)) : '';\nsystem = system + ctxCanal + ctxLoja + ctxAmbiente + ctxCli;\nreturn [{ json: { system_prompt: system, mensagem: mensagemFinal, telefone: pw.telefone, last8: pw.last8 } }];"
+      },
+      "id": "8aa000fe-f4a7-4161-950e-46c391aeeb71",
+      "name": "Montar Contexto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.mensagem }}",
+        "options": {
+          "systemMessage": "=- **Data/hora atual:** {{ `Hoje é ${['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'][new Date().getDay()]}, são ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}` }}, {{ $now.setZone('America/Sao_Paulo').format('dd/MM/yyyy') }}\n---\n\n{{ $json.system_prompt }}",
+          "enableStreaming": false
+        }
+      },
+      "id": "8ac001fa-71a9-4dce-a8dd-8a4dd056a6bc",
+      "name": "Nanda",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        2688,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1"
+        },
+        "builtInTools": {
+          "webSearch": {
+            "searchContextSize": "medium",
+            "country": "BR"
+          }
+        },
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "id": "0c6acf85-b814-49e9-8764-ae162efa1626",
+      "name": "Modelo Nanda",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        2624,
+        336
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "CrvvQZknXJnFRwgc",
+          "name": "OpenAi Nando"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Montar Contexto').item.json.telefone }}",
+        "contextWindowLength": 50
+      },
+      "id": "eac194d7-920a-45a6-962e-6437f926af57",
+      "name": "Memoria Nanda",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.4,
+      "position": [
+        2752,
+        336
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "IBtVCAaHmDGpnVnk",
+          "name": "Postgres Posto"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Use SOMENTE quando o cliente pedir para ALTERAR/atualizar o preco de um combustivel. Requer produto canonico (gasolina_comum, gasolina_aditivada, diesel_s10, diesel_s500) e valor. A autorizacao do numero e verificada automaticamente.",
+        "workflowId": {
+          "__rl": true,
+          "value": "4iPmsgfyPmhxUJfR",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/4iPmsgfyPmhxUJfR",
+          "cachedResultName": "atualizar_preco_posto"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "numero": "={{ $('Parse Webhook').item.json.telefone }}",
+            "produto": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('produto', 'Produto canonico: gasolina_comum, gasolina_aditivada, diesel_s10 ou diesel_s500') }}",
+            "valor": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('valor', 'Novo preco em reais, ex: 5.89') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "numero",
+              "displayName": "numero",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "produto",
+              "displayName": "produto",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "valor",
+              "displayName": "valor",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        }
+      },
+      "id": "69761a68-0ebb-471c-b629-47504ece76de",
+      "name": "atualizar_preco",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        2880,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "WcfPnypt1Rmi6sli",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/WcfPnypt1Rmi6sli",
+          "cachedResultName": "classificador_posto"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "telefone": "={{ $('Parse Webhook').item.json.telefone }}",
+            "last8": "={{ $('Parse Webhook').item.json.last8 }}",
+            "mensagem": "={{ $('Montar Contexto').item.json.mensagem }}",
+            "resposta": "={{ $('Nanda').first().json.output }}",
+            "cliente_json": "={{ JSON.stringify($('Buscar Cliente').item.json) }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "telefone",
+              "displayName": "telefone",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last8",
+              "displayName": "last8",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "mensagem",
+              "displayName": "mensagem",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "resposta",
+              "displayName": "resposta",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cliente_json",
+              "displayName": "cliente_json",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "b879388b-ca2a-4514-bbd5-cfa8a7be50d5",
+      "name": "Classificador (Pos-Turno)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        5120,
+        240
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "7ac457fc-dd69-40fd-946e-0d4f795a0841",
+      "name": "Fim (nao ultima)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1728,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=sending:{{ $('Parse Webhook').first().json.telefone }}",
+        "value": "1",
+        "expire": true,
+        "ttl": 120
+      },
+      "id": "780c1ea4-d07b-4913-962e-a144ae672391",
+      "name": "REDIS SET LOCK",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        3488,
+        256
+      ],
+      "credentials": {
+        "redis": {
+          "id": "uBgAIbBF16dqUpzr",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  const rawOutput = $('Nanda').first().json.output || $input.first().json.output || $input.first().json.text || '';\n  const MIN_DELAY = 1000;\n  const MAX_DELAY = 3500;\n  const PER_CHAR = 30;\n  const text = rawOutput.replace(/\\\\n/g, '\\n').replace(/\\r\\n/g, '\\n');\n\n  function detectFormat(s) {\n    const t = s.trim().toLowerCase();\n    if (/\\.(jpg|jpeg|png|gif|webp)(\\?|$)/.test(t)) return 'imagem';\n    if (/\\.(mp4|avi|mov|webm)(\\?|$)/.test(t)) return 'video';\n    if (/\\.(opus|mp3|wav|ogg|m4a)(\\?|$)/.test(t)) return 'audio';\n    return 'texto';\n  }\n  function stripIndicators(s) {\n    return s.replace(/\\[(Audio|Imagem|Video|PDF|Documento)\\]/gi, '').trim();\n  }\n  function calcDelay(len) {\n    return Math.min(MAX_DELAY, Math.max(MIN_DELAY, Math.round(len * PER_CHAR)));\n  }\n\n  let cleanText = text;\n\n  const blocoUnicoMap = {};\n  let blocoIdx = 0;\n  cleanText = cleanText.replace(/\"?\\[BLOCO_UNICO\\]([\\s\\S]*?)\\[\\/BLOCO_UNICO\\]\"?/g, (match, inner) => {\n    const placeholder = `__BLOCO_UNICO_${blocoIdx}__`;\n    blocoUnicoMap[placeholder] = inner.trim();\n    blocoIdx++;\n    return placeholder;\n  });\n\n  const captionMap = {};\n  let captionIdx = 0;\n  cleanText = cleanText.replace(/\\[CAPTION\\]([\\s\\S]*?)\\[\\/CAPTION\\]/g, (match, inner) => {\n    const placeholder = `__CAPTION_${captionIdx}__`;\n    captionMap[placeholder] = inner.trim();\n    captionIdx++;\n    return placeholder;\n  });\n\n  let rawParts;\n  if (cleanText.includes('---BLOCO---')) {\n    const blocos = cleanText.split('---BLOCO---');\n    rawParts = [];\n    for (const bloco of blocos) {\n      const trimmed = bloco.trim();\n      if (!trimmed) continue;\n      if (trimmed.startsWith('__BLOCO_UNICO_')) {\n        rawParts.push(trimmed);\n      } else {\n        const lines = trimmed.split(/\\n+/).map(s => s.trim()).filter(Boolean);\n        rawParts.push(...lines);\n      }\n    }\n  } else {\n    rawParts = cleanText.split(/\\n+/).map(s => s.trim()).filter(Boolean);\n  }\n\n  const result = [];\n  let i = 0;\n  while (i < rawParts.length) {\n    const part = rawParts[i];\n    if (blocoUnicoMap[part] !== undefined) {\n      const conteudo = blocoUnicoMap[part];\n      result.push({ json: { conteudo, formato: 'texto', delay: calcDelay(conteudo.length), dinamico: false } });\n      i++;\n      continue;\n    }\n    const cleaned = stripIndicators(part);\n    if (!cleaned) { i++; continue; }\n    if (cleaned.startsWith('[CAPTION]')) {\n      const captionText = cleaned.slice('[CAPTION]'.length).trim();\n      if (result.length > 0 && result[result.length - 1].json.formato === 'imagem') {\n        result[result.length - 1].json.caption = captionText;\n      }\n      i++;\n      continue;\n    }\n    const formato = cleaned.startsWith('http') ? detectFormat(cleaned) : 'texto';\n    if (formato === 'imagem' && i + 1 < rawParts.length) {\n      const nextPart = rawParts[i + 1].trim();\n      if (captionMap[nextPart] !== undefined) {\n        result.push({ json: { conteudo: cleaned, formato: 'imagem', caption: captionMap[nextPart], delay: 5000, dinamico: false } });\n        i += 2;\n        continue;\n      }\n    }\n    const delay = formato === 'texto' ? calcDelay(cleaned.length) : 5000;\n    result.push({ json: { conteudo: cleaned, formato, delay, dinamico: false } });\n    i++;\n  }\n\n    if (result.length === 0) {\n    result.push({ json: { conteudo: rawOutput || 'Opa! Como posso te ajudar? 😊', formato: 'texto', delay: MIN_DELAY, dinamico: false } });\n  }\n  // Proteção anti-flood: remove blocos duplicados e limita a quantidade\n  const vistos = new Set();\n  let finalResult = [];\n  for (const r of result) {\n    const chave = String(r.json.conteudo || '').trim();\n    if (chave && vistos.has(chave)) continue;\n    if (chave) vistos.add(chave);\n    finalResult.push(r);\n  }\n  const MAX_MSGS = 7;\n  if (finalResult.length > MAX_MSGS) finalResult = finalResult.slice(0, MAX_MSGS);\n  return finalResult;\n} catch(e) {\n  return [{ json: { conteudo: 'Erro ao processar resposta', formato: 'texto', delay: 3500, dinamico: false, erro: e.message } }];\n}"
+      },
+      "id": "96a70cec-30e1-4365-957f-ab9257129e40",
+      "name": "PREPARA RESPOSTA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3712,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "440253bb-fe8b-46dc-94a4-c41da9d88ffc",
+      "name": "LOOP DE ENVIO",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        3936,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.formato }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "texto"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "texto"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.formato }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "audio"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.formato }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "imagem"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "imagem"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.formato }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "video"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "video"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "83b6ed57-8cd5-4dee-a62e-e4e93ffcdd8c",
+      "name": "SWITCH FORMATO",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        4160,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thato.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Parse Webhook').first().json.telefone }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.conteudo }}"
+            },
+            {
+              "name": "delay",
+              "value": "={{ $json.delay }}"
+            },
+            {
+              "name": "linkPreview",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1d3683c-695c-4f10-b813-9f577983ea47",
+      "name": "ENVIAR TEXTO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4400,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thato.uazapi.com/send/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Parse Webhook').first().json.telefone }}"
+            },
+            {
+              "name": "type",
+              "value": "=ptt"
+            },
+            {
+              "name": "file",
+              "value": "={{ $json.conteudo }}"
+            },
+            {
+              "name": "delay",
+              "value": "={{ $json.delay }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "44e6d43a-37e1-4a9b-8eb5-39993595cf39",
+      "name": "ENVIAR AUDIO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4400,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thato.uazapi.com/send/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Parse Webhook').first().json.telefone }}"
+            },
+            {
+              "name": "type",
+              "value": "=image"
+            },
+            {
+              "name": "file",
+              "value": "={{ $json.conteudo }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.caption }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e4de8f55-2ce6-4885-a530-47feb9a97591",
+      "name": "ENVIAR IMAGEM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4400,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thato.uazapi.com/send/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Parse Webhook').first().json.telefone }}"
+            },
+            {
+              "name": "type",
+              "value": "=video"
+            },
+            {
+              "name": "file",
+              "value": "={{ $json.conteudo }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f040e297-9422-4a6b-96d1-e47887c5e919",
+      "name": "ENVIAR VIDEO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4400,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "id": "c8b30f8f-c897-4b38-9584-c2d52ca3f92b",
+      "name": "AGUARDAR DELAY",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        4656,
+        704
+      ],
+      "webhookId": "nanda-wait-delay"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "id": "18cf86d7-12e0-43b5-9c86-463e6c3d298a",
+      "name": "Aggregate",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        4624,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=sending:{{ $('Parse Webhook').first().json.telefone }}"
+      },
+      "id": "a7932bbd-4322-427c-b835-bb3163050de5",
+      "name": "REDIS DEL LOCK",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        4912,
+        240
+      ],
+      "credentials": {
+        "redis": {
+          "id": "uBgAIbBF16dqUpzr",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataToSave": {
+          "values": [
+            {
+              "key": "nome",
+              "value": "={{ $json.nome }}"
+            },
+            {
+              "key": "telefone",
+              "value": "={{ $json.telefone }}"
+            },
+            {
+              "key": "mensagem",
+              "value": "={{ $json.mensagem }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executionData",
+      "typeVersion": 1.1,
+      "position": [
+        -1904,
+        0
+      ],
+      "id": "70792009-ff7e-455e-b322-210726951634",
+      "name": "Execution Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.tipo_mensagem }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "audiomessage"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9d027744-230e-42d3-840d-151e625d7b97",
+      "name": "É AUDIO?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1200,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://thato.uazapi.com/message/download",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "=698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "={{ $json.message_id }}"
+            },
+            {
+              "name": "return_base64",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7fc4320b-3d7f-4811-bb3f-f55622106731",
+      "name": "BAIXAR AUDIO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -960,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64Data",
+        "options": {
+          "fileName": "audio.ogg",
+          "mimeType": "audio/ogg"
+        }
+      },
+      "id": "49bdc0d6-64dc-4161-9a64-eb5c82e0729b",
+      "name": "CONVERTER AUDIO",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -720,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "id": "6ee5d23a-0cc5-4f9a-bebd-ea9d65512423",
+      "name": "TRANSCREVER AUDIO",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [
+        -480,
+        -160
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "CrvvQZknXJnFRwgc",
+          "name": "OpenAi Nando"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  const text = $input.first().json.text || '(áudio não transcrito)';\n  const src = $('Parse Webhook').first().json;\n  return [{ json: { telefone: src.telefone, nome: src.nome, mensagem: text, tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];\n} catch(e) {\n  const src = $('Parse Webhook').first().json;\n  return [{ json: { telefone: src.telefone, nome: src.nome, mensagem: '(áudio)', tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];\n}"
+      },
+      "id": "aecca2e4-3ebd-4650-ab80-3c2d1ed919e7",
+      "name": "MONTAR MSG AUDIO",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.tipo_mensagem }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              },
+              "rightValue": "imagemessage",
+              "id": "img-cond-1"
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "92bdbf81-0c5c-4d0f-9bb5-5e05f8c59e29",
+      "name": "É IMAGEM?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1024,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://thato.uazapi.com/message/download",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "=698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "={{ $json.message_id }}"
+            },
+            {
+              "name": "return_base64",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0c16dd9f-40f9-4303-bd87-4d0f641fe372",
+      "name": "BAIXAR IMAGEM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -960,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64Data",
+        "options": {
+          "fileName": "imagem.jpg",
+          "mimeType": "image/jpeg"
+        }
+      },
+      "id": "e2f94ec6-8649-48be-968a-fa980ff96ac1",
+      "name": "CONVERTER IMAGEM",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -720,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "text": "Descreva o conteúdo desta imagem em português. Se houver texto visível (placa, nota, cupom, layout de preço), transcreva-o. Seja objetivo.",
+        "inputType": "base64",
+        "options": {}
+      },
+      "id": "5f0a7889-37de-4a29-80ca-4ecabed41c1f",
+      "name": "DESCREVER IMAGEM",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [
+        -480,
+        368
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "CrvvQZknXJnFRwgc",
+          "name": "OpenAi Nando"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  const desc = $input.first().json.content || $input.first().json.text || '(imagem)';\n  const src = $('Parse Webhook').first().json;\n  return [{ json: { telefone: src.telefone, nome: src.nome, mensagem: '[Imagem] ' + desc, tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];\n} catch(e) {\n  const src = $('Parse Webhook').first().json;\n  return [{ json: { telefone: src.telefone, nome: src.nome, mensagem: '(imagem)', tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];\n}"
+      },
+      "id": "1252471d-e6fb-44ee-9426-8901b865f15f",
+      "name": "MONTAR MSG IMAGEM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.tipo_mensagem }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "stickermessage"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a77be690-44a0-4a2a-8aa4-f89da95efff1",
+      "name": "É FIGURINHA?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1104,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://thato.uazapi.com/message/download",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "=698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "={{ $json.message_id }}"
+            },
+            {
+              "name": "return_base64",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "53854ed6-251f-4e78-8bdf-d8f9a42dd467",
+      "name": "BAIXAR FIGURINHA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -864,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64Data",
+        "options": {
+          "fileName": "figurinha.webp",
+          "mimeType": "image/webp"
+        }
+      },
+      "id": "cd0d8251-885a-46fa-9b0d-2bd3ecf43464",
+      "name": "CONVERTER FIGURINHA",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -624,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "text": "Descreva em português, de forma breve, esta figurinha (sticker) do WhatsApp: o que mostra, a emoção/intenção e, se houver texto, transcreva-o.",
+        "inputType": "base64",
+        "options": {}
+      },
+      "id": "fb970ca3-87a4-4222-a8be-267016d91b78",
+      "name": "DESCREVER FIGURINHA",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [
+        -416,
+        608
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "CrvvQZknXJnFRwgc",
+          "name": "OpenAi Nando"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  const desc = $input.first().json.content || $input.first().json.text || '(figurinha)';\n  const src = $('Parse Webhook').first().json;\n  return [{ json: { telefone: src.telefone, nome: src.nome, mensagem: '[Figurinha] ' + desc, tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];\n} catch(e) {\n  const src = $('Parse Webhook').first().json;\n  return [{ json: { telefone: src.telefone, nome: src.nome, mensagem: '[Figurinha]', tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];\n}"
+      },
+      "id": "d431ab12-5898-46e5-87dd-663e83f83022",
+      "name": "MONTAR MSG FIGURINHA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -192,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.tipo_mensagem }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "documentmessage"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "016e9f8f-33bb-4cf6-aad1-d123d10bc62f",
+      "name": "É DOCUMENTO?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1072,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://thato.uazapi.com/message/download",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "=698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "={{ $json.message_id }}"
+            },
+            {
+              "name": "return_base64",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "64a036ec-7493-48c5-bed5-9c4035a2c638",
+      "name": "BAIXAR DOCUMENTO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -848,
+        864
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64Data",
+        "options": {
+          "fileName": "documento.pdf",
+          "mimeType": "application/pdf"
+        }
+      },
+      "id": "c97b90f4-8c96-4fe6-8abf-21092315235f",
+      "name": "CONVERTER DOCUMENTO",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -624,
+        864
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "joinPages": true
+        }
+      },
+      "id": "a3fecf11-8c1d-4b82-8f85-259ea1915fc5",
+      "name": "EXTRAIR DOCUMENTO",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -416,
+        864
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $('Parse Webhook').first().json;\nlet t = '';\ntry { t = String($input.first().json.text || '').trim(); } catch(e) { t = ''; }\nif (t.length > 1500) t = t.slice(0, 1500) + '…';\nconst msg = t\n  ? ('[Documento] Conteúdo extraído:\\n' + t)\n  : '[Documento] O cliente enviou um documento que não consegui ler aqui. Peça gentilmente do que se trata, ou as informações por texto/foto.';\nreturn [{ json: { telefone: src.telefone, nome: src.nome, mensagem: msg, tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];"
+      },
+      "id": "29c474f7-d7ef-4eef-9ffd-956f736632d7",
+      "name": "MONTAR MSG DOCUMENTO",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -192,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "mt-assign-1",
+              "name": "mensagem",
+              "value": "={{ $json.mensagem }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        160,
+        112
+      ],
+      "id": "18529f43-6d43-4276-827f-e8896950b967",
+      "name": "Mensagem Tratada"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Parse Webhook').item.json.tipo_mensagem }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "audiomessage"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "63a612f9-b6ce-4e58-ae19-6ba72d1cd8b6",
+      "name": "Responder em Áudio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3168,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let out = String($('Nanda').first().json.output || '');\nout = out.split('[BLOCO_UNICO]').join('').split('[/BLOCO_UNICO]').join('').split('**').join('').split('*').join('');\nout = out.split(String.fromCharCode(13)).join(' ').split(String.fromCharCode(10)).join(' ');\nwhile (out.indexOf('  ') !== -1) out = out.split('  ').join(' ');\nout = out.trim();\nif (out.length > 700) out = out.slice(0, 700);\nconst NL = String.fromCharCode(10);\nconst profile = 'Voz divertida com sotaque do interior da Bahia, no Brasil';\nconst director = 'Estilo: tom claro, alegre e acolhedor (sorriso na voz); ritmo rapido e energetico, sem pausas longas.';\nconst tts_prompt = 'Leia a transcricao a seguir conforme o perfil de audio e a nota de direcao.' + NL + NL + '# Audio Profile' + NL + profile + NL + NL + '# Director note' + NL + director + NL + NL + '## Transcript:' + NL + out;\nreturn [{ json: { tts_prompt: tts_prompt, telefone: $('Parse Webhook').first().json.telefone } }];"
+      },
+      "id": "7d778a7a-68c5-4894-9875-9934bd7a7f6c",
+      "name": "Preparar Texto TTS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3504,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "AIzaSyBTSCzIHP9m5Xfh_F56XReOUyfFP5sV7xI"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"contents\": [ { \"role\": \"user\", \"parts\": [ { \"text\": $json.tts_prompt } ] } ], \"generationConfig\": { \"temperature\": 1, \"responseModalities\": [\"AUDIO\"], \"speechConfig\": { \"voiceConfig\": { \"prebuiltVoiceConfig\": { \"voiceName\": \"Autonoe\" } } } } } }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "cfad6b18-9a69-4f93-94a6-bc9e10e86692",
+      "name": "Gemini TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3920,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nlet part = {};\ntry { part = resp.candidates[0].content.parts[0].inlineData; } catch (e) { part = {}; }\nconst b64 = part.data || '';\nconst mime = part.mimeType || 'audio/L16;rate=24000';\nlet rate = 24000, bits = 16;\nfor (const s of mime.split(';')) {\n  const seg = s.trim();\n  if (seg.toLowerCase().indexOf('rate=') === 0) { const v = parseInt(seg.split('=')[1]); if (v) rate = v; }\n  if (seg.indexOf('audio/L') === 0) { const v = parseInt(seg.split('L')[1]); if (v) bits = v; }\n}\nif (!b64) { return [{ json: { erro: 'TTS sem audio', telefone: $('Parse Webhook').first().json.telefone } }]; }\nconst pcm = Buffer.from(b64, 'base64');\nconst numChannels = 1;\nconst bytesPerSample = bits / 8;\nconst blockAlign = numChannels * bytesPerSample;\nconst byteRate = rate * blockAlign;\nconst dataSize = pcm.length;\nconst header = Buffer.alloc(44);\nheader.write('RIFF', 0);\nheader.writeUInt32LE(36 + dataSize, 4);\nheader.write('WAVE', 8);\nheader.write('fmt ', 12);\nheader.writeUInt32LE(16, 16);\nheader.writeUInt16LE(1, 20);\nheader.writeUInt16LE(numChannels, 22);\nheader.writeUInt32LE(rate, 24);\nheader.writeUInt32LE(byteRate, 28);\nheader.writeUInt16LE(blockAlign, 32);\nheader.writeUInt16LE(bits, 34);\nheader.write('data', 36);\nheader.writeUInt32LE(dataSize, 40);\nconst wav = Buffer.concat([header, pcm]);\nconst wavB64 = wav.toString('base64');\nreturn [{ json: { telefone: $('Parse Webhook').first().json.telefone, audioBase64: wavB64, dataUri: 'data:audio/wav;base64,' + wavB64 } }];"
+      },
+      "id": "e9d659cc-f7f0-4fea-844d-4f438917f8e2",
+      "name": "PCM para WAV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4272,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thato.uazapi.com/send/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.telefone }}"
+            },
+            {
+              "name": "type",
+              "value": "ptt"
+            },
+            {
+              "name": "file",
+              "value": "={{ $json.dataUri }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "52be9983-9309-44e8-a916-7839b4e8eae8",
+      "name": "ENVIAR AUDIO (TTS)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5088,
+        -128
+      ]
+    }
+  ],
+  "connections": {
+    "Receber Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Webhook": {
+      "main": [
+        [
+          {
+            "node": "Execution Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eh from_me?": {
+      "main": [
+        [
+          {
+            "node": "Pausar Contato",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Eh /delete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eh /delete?": {
+      "main": [
+        [
+          {
+            "node": "Limpar Pausa",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "É AUDIO?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpar Pausa": {
+      "main": [
+        [
+          {
+            "node": "Limpar Memoria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpar Memoria": {
+      "main": [
+        [
+          {
+            "node": "Avisar Reset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checar Pausa": {
+      "main": [
+        [
+          {
+            "node": "Esta pausado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esta pausado?": {
+      "main": [
+        [
+          {
+            "node": "Fim (pausado)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar Ultima",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Ultima": {
+      "main": [
+        [
+          {
+            "node": "Aguardar Debounce",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar Debounce": {
+      "main": [
+        [
+          {
+            "node": "Ler Ultima",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Ultima": {
+      "main": [
+        [
+          {
+            "node": "Sou a ultima?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sou a ultima?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Cliente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fim (nao ultima)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Cliente": {
+      "main": [
+        [
+          {
+            "node": "Pegar Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pegar Prompt": {
+      "main": [
+        [
+          {
+            "node": "Pegar Precos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pegar Precos": {
+      "main": [
+        [
+          {
+            "node": "Montar Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Contexto": {
+      "main": [
+        [
+          {
+            "node": "Nanda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nanda": {
+      "main": [
+        [
+          {
+            "node": "Responder em Áudio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Modelo Nanda": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Nanda",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memoria Nanda": {
+      "ai_memory": [
+        [
+          {
+            "node": "Nanda",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "atualizar_preco": {
+      "ai_tool": [
+        [
+          {
+            "node": "Nanda",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "REDIS SET LOCK": {
+      "main": [
+        [
+          {
+            "node": "PREPARA RESPOSTA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PREPARA RESPOSTA": {
+      "main": [
+        [
+          {
+            "node": "LOOP DE ENVIO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LOOP DE ENVIO": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SWITCH FORMATO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SWITCH FORMATO": {
+      "main": [
+        [
+          {
+            "node": "ENVIAR TEXTO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ENVIAR AUDIO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ENVIAR IMAGEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ENVIAR VIDEO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ENVIAR TEXTO": {
+      "main": [
+        [
+          {
+            "node": "AGUARDAR DELAY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ENVIAR AUDIO": {
+      "main": [
+        [
+          {
+            "node": "AGUARDAR DELAY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ENVIAR IMAGEM": {
+      "main": [
+        [
+          {
+            "node": "AGUARDAR DELAY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ENVIAR VIDEO": {
+      "main": [
+        [
+          {
+            "node": "AGUARDAR DELAY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AGUARDAR DELAY": {
+      "main": [
+        [
+          {
+            "node": "LOOP DE ENVIO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "REDIS DEL LOCK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "REDIS DEL LOCK": {
+      "main": [
+        [
+          {
+            "node": "Classificador (Pos-Turno)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execution Data": {
+      "main": [
+        [
+          {
+            "node": "Eh from_me?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É AUDIO?": {
+      "main": [
+        [
+          {
+            "node": "BAIXAR AUDIO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "É IMAGEM?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BAIXAR AUDIO": {
+      "main": [
+        [
+          {
+            "node": "CONVERTER AUDIO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONVERTER AUDIO": {
+      "main": [
+        [
+          {
+            "node": "TRANSCREVER AUDIO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TRANSCREVER AUDIO": {
+      "main": [
+        [
+          {
+            "node": "MONTAR MSG AUDIO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MONTAR MSG AUDIO": {
+      "main": [
+        [
+          {
+            "node": "Mensagem Tratada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É IMAGEM?": {
+      "main": [
+        [
+          {
+            "node": "É FIGURINHA?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "BAIXAR IMAGEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BAIXAR IMAGEM": {
+      "main": [
+        [
+          {
+            "node": "CONVERTER IMAGEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONVERTER IMAGEM": {
+      "main": [
+        [
+          {
+            "node": "DESCREVER IMAGEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DESCREVER IMAGEM": {
+      "main": [
+        [
+          {
+            "node": "MONTAR MSG IMAGEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MONTAR MSG IMAGEM": {
+      "main": [
+        [
+          {
+            "node": "Mensagem Tratada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É FIGURINHA?": {
+      "main": [
+        [
+          {
+            "node": "BAIXAR FIGURINHA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "É DOCUMENTO?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BAIXAR FIGURINHA": {
+      "main": [
+        [
+          {
+            "node": "CONVERTER FIGURINHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONVERTER FIGURINHA": {
+      "main": [
+        [
+          {
+            "node": "DESCREVER FIGURINHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DESCREVER FIGURINHA": {
+      "main": [
+        [
+          {
+            "node": "MONTAR MSG FIGURINHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MONTAR MSG FIGURINHA": {
+      "main": [
+        [
+          {
+            "node": "Mensagem Tratada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É DOCUMENTO?": {
+      "main": [
+        [
+          {
+            "node": "BAIXAR DOCUMENTO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mensagem Tratada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BAIXAR DOCUMENTO": {
+      "main": [
+        [
+          {
+            "node": "CONVERTER DOCUMENTO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONVERTER DOCUMENTO": {
+      "main": [
+        [
+          {
+            "node": "EXTRAIR DOCUMENTO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXTRAIR DOCUMENTO": {
+      "main": [
+        [
+          {
+            "node": "MONTAR MSG DOCUMENTO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MONTAR MSG DOCUMENTO": {
+      "main": [
+        [
+          {
+            "node": "Mensagem Tratada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem Tratada": {
+      "main": [
+        [
+          {
+            "node": "Checar Pausa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder em Áudio?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Texto TTS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "REDIS SET LOCK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Texto TTS": {
+      "main": [
+        [
+          {
+            "node": "Gemini TTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini TTS": {
+      "main": [
+        [
+          {
+            "node": "PCM para WAV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PCM para WAV": {
+      "main": [
+        [
+          {
+            "node": "ENVIAR AUDIO (TTS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ENVIAR AUDIO (TTS)": {
+      "main": [
+        [
+          {
+            "node": "Classificador (Pos-Turno)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "Receber Mensagem": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n-n8n.nnes2l.easypanel.host",
+            "user-agent": "uazapiGO-Webhook/1.0",
+            "content-length": "2644",
+            "accept-encoding": "gzip",
+            "content-type": "application/json",
+            "x-forwarded-for": "162.55.88.172",
+            "x-forwarded-host": "n8n-n8n.nnes2l.easypanel.host",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "56d2a63af233",
+            "x-real-ip": "162.55.88.172"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "BaseUrl": "https://thato.uazapi.com",
+            "EventType": "messages",
+            "chat": {
+              "chatbot_agentResetMemoryAt": 0,
+              "chatbot_disableUntil": 0,
+              "chatbot_lastTriggerAt": 0,
+              "chatbot_lastTrigger_id": "",
+              "id": "rc4f261e58967b5",
+              "image": "",
+              "imagePreview": "",
+              "lead_assignedAttendant_id": "",
+              "lead_email": "",
+              "lead_field01": "",
+              "lead_field02": "",
+              "lead_field03": "",
+              "lead_field04": "",
+              "lead_field05": "",
+              "lead_field06": "",
+              "lead_field07": "",
+              "lead_field08": "",
+              "lead_field09": "",
+              "lead_field10": "",
+              "lead_field11": "",
+              "lead_field12": "",
+              "lead_field13": "",
+              "lead_field14": "",
+              "lead_field15": "",
+              "lead_field16": "",
+              "lead_field17": "",
+              "lead_field18": "",
+              "lead_field19": "",
+              "lead_field20": "",
+              "lead_fullName": "",
+              "lead_isTicketOpen": false,
+              "lead_kanbanOrder": 0,
+              "lead_name": "",
+              "lead_notes": "",
+              "lead_personalid": "",
+              "lead_status": "",
+              "lead_tags": [],
+              "name": "••Jeiel••",
+              "owner": "557381379532",
+              "phone": "+55 71 9975-6094",
+              "wa_archived": false,
+              "wa_chatid": "557199756094@s.whatsapp.net",
+              "wa_chatlid": "68294342140113@lid",
+              "wa_contactName": "",
+              "wa_ephemeralExpiration": 0,
+              "wa_fastid": "557381379532:557199756094",
+              "wa_isBlocked": false,
+              "wa_isGroup": false,
+              "wa_isGroup_admin": false,
+              "wa_isGroup_announce": false,
+              "wa_isGroup_community": false,
+              "wa_isGroup_member": false,
+              "wa_isPinned": false,
+              "wa_label": [],
+              "wa_lastMessageSender": "68294342140113@lid",
+              "wa_lastMessageTextVote": "Estou aqui no posto e o pessoal esta informando que não tem a tomada",
+              "wa_lastMessageType": "ExtendedTextMessage",
+              "wa_lastMsgTimestamp": 1781136920000,
+              "wa_muteEndTime": 0,
+              "wa_name": "••Jeiel••",
+              "wa_notes": "",
+              "wa_unreadCount": 17
+            },
+            "chatSource": "updated",
+            "instanceName": "posto",
+            "message": {
+              "buttonOrListid": "",
+              "chatid": "557199756094@s.whatsapp.net",
+              "chatlid": "68294342140113@lid",
+              "content": {
+                "text": "Estou aqui no posto e o pessoal esta informando que não tem a tomada",
+                "previewType": 0,
+                "contextInfo": {
+                  "entryPointConversionSource": "click_to_chat_link",
+                  "entryPointConversionDelaySeconds": 21313
+                },
+                "inviteLinkGroupTypeV2": 0
+              },
+              "convertOptions": "",
+              "edited": "",
+              "fromMe": false,
+              "groupName": "",
+              "id": "557381379532:AC09D977CCADF1A8038C741DB42F5CD5",
+              "isGroup": false,
+              "mediaType": "",
+              "messageTimestamp": 1781136920000,
+              "messageType": "ExtendedTextMessage",
+              "messageid": "AC09D977CCADF1A8038C741DB42F5CD5",
+              "owner": "557381379532",
+              "pinned": false,
+              "quoted": "",
+              "reaction": "",
+              "sender": "68294342140113@lid",
+              "senderName": "••Jeiel••",
+              "sender_lid": "68294342140113@lid",
+              "sender_pn": "557199756094@s.whatsapp.net",
+              "source": "android",
+              "status": "",
+              "text": "Estou aqui no posto e o pessoal esta informando que não tem a tomada",
+              "track_id": "",
+              "track_source": "",
+              "type": "text",
+              "vote": "",
+              "wasSentByApi": false
+            },
+            "owner": "557381379532",
+            "token": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+          },
+          "webhookUrl": "https://n8n-n8n.nnes2l.easypanel.host/webhook/posto-inbound",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "versionId": "ad6cb47d-4db8-4080-a99e-c73b5fde5744",
+  "activeVersionId": "ad6cb47d-4db8-4080-a99e-c73b5fde5744",
+  "versionCounter": 125,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-06-06T20:16:49.124Z",
+      "createdAt": "2026-06-06T20:16:49.124Z",
+      "role": "workflow:owner",
+      "workflowId": "KHrZrnx9PAZfkS3F",
+      "projectId": "QLnPbXiAkbtViyKp",
+      "project": {
+        "updatedAt": "2025-08-11T05:39:44.549Z",
+        "createdAt": "2025-05-04T21:00:39.280Z",
+        "id": "QLnPbXiAkbtViyKp",
+        "name": "FERNANDO CARVALHO <contadenando@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "18fd1565-d45e-4c6e-b006-682b90e17be0"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-06-14T21:38:33.000Z",
+    "createdAt": "2026-06-14T21:38:31.212Z",
+    "versionId": "ad6cb47d-4db8-4080-a99e-c73b5fde5744",
+    "workflowId": "KHrZrnx9PAZfkS3F",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "posto-inbound",
+          "options": {}
+        },
+        "id": "591f1535-438e-4315-88dc-cb051b394164",
+        "name": "Receber Mensagem",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          -2336,
+          0
+        ],
+        "webhookId": "a48d24aa-85a1-4b63-afce-cc487ad8da14"
+      },
+      {
+        "parameters": {
+          "jsCode": "const item = $input.first();\nconst body = item.json.body || item.json;\nconst msg = body.message || {};\nconst chatid = msg.chatid || '';\nconst telefone = chatid.endsWith('@lid') ? String(msg.sender_pn || '').split('@')[0] : String(chatid).split('@')[0];\nconst fromMe = msg.fromMe === true;\nconst tipo = String(msg.messageType || '').toLowerCase();\nconst rawContent = msg.content || msg.text || '';\nconst mensagem = typeof rawContent === 'string' ? rawContent : (rawContent.text || '');\nconst nome = msg.senderName || '';\nconst message_id = msg.messageid || '';\nconst last8 = String(telefone).slice(-8);\nconst ehTexto = tipo.indexOf('conversation') !== -1 || tipo.indexOf('text') !== -1 || tipo === '';\nconst ehDelete = String(mensagem).trim().toLowerCase() === '/delete';\n\n// --- canal da mensagem (para o prompt da Fernanda) ---\nconst ehAudio = tipo.indexOf('audio') !== -1;\nconst canal_mensagem = ehAudio ? 'audio' : 'texto';\nconst instrucao_canal = ehAudio\n  ? 'A mensagem atual do cliente chegou por ÁUDIO. NÃO peça para seguir o Instagram nem cite/envie link do site nesta resposta (links e @ ficam horríveis quando lidos em voz). Responda apenas o essencial.'\n  : 'A mensagem atual do cliente chegou por TEXTO.';\n\nreturn [{ json: { telefone, last8, from_me: fromMe ? 'sim' : 'nao', tipo_mensagem: tipo, mensagem, nome, message_id, eh_texto: ehTexto ? 'sim' : 'nao', eh_delete: ehDelete ? 'sim' : 'nao', canal_mensagem, instrucao_canal } }];"
+        },
+        "id": "931a088a-670b-416e-9968-83de1040dfce",
+        "name": "Parse Webhook",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -2112,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $json.from_me }}",
+                "rightValue": "sim",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "5d4adf2c-73ad-49d1-875b-6040245ef4e0",
+        "name": "Eh from_me?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -1664,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "set",
+          "key": "=posto:pausa:{{ $json.last8 }}",
+          "value": "1",
+          "keyType": "string"
+        },
+        "id": "f6af174e-ea34-4af9-bf8d-c57430ceb340",
+        "name": "Pausar Contato",
+        "type": "n8n-nodes-base.redis",
+        "typeVersion": 1,
+        "position": [
+          -1456,
+          -304
+        ],
+        "credentials": {
+          "redis": {
+            "id": "uBgAIbBF16dqUpzr",
+            "name": "Redis account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $json.eh_delete }}",
+                "rightValue": "sim",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "4087cb24-89a1-49c7-a741-6b24d9a5b0e3",
+        "name": "Eh /delete?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -1440,
+          96
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "delete",
+          "key": "=posto:pausa:{{ $json.last8 }}"
+        },
+        "id": "616caa8b-7412-476a-901f-0ca53331f2de",
+        "name": "Limpar Pausa",
+        "type": "n8n-nodes-base.redis",
+        "typeVersion": 1,
+        "position": [
+          -1056,
+          -416
+        ],
+        "credentials": {
+          "redis": {
+            "id": "uBgAIbBF16dqUpzr",
+            "name": "Redis account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "delete from n8n_chat_histories where session_id = $1",
+          "options": {
+            "queryReplacement": "={{ $('Parse Webhook').item.json.telefone }}"
+          }
+        },
+        "id": "a1095e2e-bbf3-47ee-b2e3-9e9f0d21656b",
+        "name": "Limpar Memoria",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          -832,
+          -416
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "IBtVCAaHmDGpnVnk",
+            "name": "Postgres Posto"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://thato.uazapi.com/send/text",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "token",
+                "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "number",
+                "value": "={{ $('Parse Webhook').item.json.telefone }}"
+              },
+              {
+                "name": "text",
+                "value": "Memoria resetada. Bons testes!"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "159921ce-e002-42f0-89d0-70a143ab898c",
+        "name": "Avisar Reset",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -608,
+          -416
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "propertyName": "pausado",
+          "key": "=posto:pausa:{{ $('Parse Webhook').item.json.last8 }}",
+          "keyType": "string",
+          "options": {}
+        },
+        "id": "f25b16a6-9a02-4dfe-9587-a4fd72a1818e",
+        "name": "Checar Pausa",
+        "type": "n8n-nodes-base.redis",
+        "typeVersion": 1,
+        "position": [
+          384,
+          112
+        ],
+        "credentials": {
+          "redis": {
+            "id": "uBgAIbBF16dqUpzr",
+            "name": "Redis account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $json.pausado }}",
+                "rightValue": "1",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "79d3aefa-45bd-4206-8a01-4d0c20246d0f",
+        "name": "Esta pausado?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          608,
+          112
+        ]
+      },
+      {
+        "parameters": {},
+        "id": "8359e606-ae77-4fc3-94fe-5ada2b867a12",
+        "name": "Fim (pausado)",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          832,
+          16
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "set",
+          "key": "=posto:last:{{ $('Parse Webhook').item.json.last8 }}",
+          "value": "={{ $('Parse Webhook').item.json.message_id }}",
+          "keyType": "string"
+        },
+        "id": "70551f3c-1a54-4659-95b6-6ddbf8e9980a",
+        "name": "Marcar Ultima",
+        "type": "n8n-nodes-base.redis",
+        "typeVersion": 1,
+        "position": [
+          832,
+          208
+        ],
+        "credentials": {
+          "redis": {
+            "id": "uBgAIbBF16dqUpzr",
+            "name": "Redis account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "amount": 15
+        },
+        "id": "5188a835-1b9b-49a2-8c0d-f9115789fd7a",
+        "name": "Aguardar Debounce",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          1056,
+          208
+        ],
+        "webhookId": "8536f067-06a4-42c1-8dc9-3b5c4a71ff5e"
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "propertyName": "ultima",
+          "key": "=posto:last:{{ $('Parse Webhook').item.json.last8 }}",
+          "keyType": "string",
+          "options": {}
+        },
+        "id": "de1be232-9603-439e-94e9-b102dfce40a0",
+        "name": "Ler Ultima",
+        "type": "n8n-nodes-base.redis",
+        "typeVersion": 1,
+        "position": [
+          1280,
+          208
+        ],
+        "credentials": {
+          "redis": {
+            "id": "uBgAIbBF16dqUpzr",
+            "name": "Redis account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $json.ultima }}",
+                "rightValue": "={{ $('Parse Webhook').item.json.message_id }}",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "6de946b2-2910-44ec-a82c-0ead57ed6bab",
+        "name": "Sou a ultima?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          1504,
+          208
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "select c.nome, c.interesse, c.cidade, c.observacoes from (select $1::text as last_8) k left join clientes c on c.last_8 = k.last_8 limit 1",
+          "options": {
+            "queryReplacement": "={{ $('Parse Webhook').item.json.last8 }}"
+          }
+        },
+        "id": "8cce4c68-5e96-4b3d-91bf-eb94aca48f2d",
+        "name": "Buscar Cliente",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          1728,
+          112
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "IBtVCAaHmDGpnVnk",
+            "name": "Postgres Posto"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "select identidade, conhecimento, regras_preco, regras_finais, regra_fundamental from prompt_posto where tipo = 'padrao' limit 1",
+          "options": {}
+        },
+        "id": "15324da8-45d1-4cbd-8c26-66488ef51d56",
+        "name": "Pegar Prompt",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          1952,
+          112
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "IBtVCAaHmDGpnVnk",
+            "name": "Postgres Posto"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "select coalesce(json_agg(json_build_object('nome', nome_exibicao, 'sigla', sigla, 'valor', valor, 'ativo', ativo) order by produto), '[]'::json) as precos from precos",
+          "options": {}
+        },
+        "id": "220bebaa-d115-4485-bc80-fbe8e3b3445b",
+        "name": "Pegar Precos",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          2176,
+          112
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "IBtVCAaHmDGpnVnk",
+            "name": "Postgres Posto"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const NL = String.fromCharCode(10);\nconst p = $('Pegar Prompt').first().json;\nconst precos = $('Pegar Precos').first().json.precos || [];\nconst cli = $('Buscar Cliente').first().json || {};\nconst pw = $('Parse Webhook').first().json;\n// Mensagem final: usa a tratada (áudio transcrito / imagem descrita / texto) com fallback\nlet mensagemFinal = pw.mensagem;\ntry { const mt = $('Mensagem Tratada').first().json; if (mt && mt.mensagem) mensagemFinal = mt.mensagem; } catch (e) {}\nlet system = [p.identidade, p.conhecimento, p.regras_preco, p.regras_finais, p.regra_fundamental].filter(Boolean).join(NL + NL);\n// ---- Preços atuais ----\nconst arr = Array.isArray(precos) ? precos : [];\nconst linhas = arr.map(function (x) {\n  const v = Number(x.valor);\n  const disp = (v > 0 && x.ativo) ? ('R$ ' + v.toFixed(2).replace('.', ',')) : 'a confirmar no posto';\n  return '- ' + x.nome + ' (' + x.sigla + '): ' + disp;\n}).join(NL);\n// ---- Data/hora local (Bahia) + período comercial ----\nlet agora;\ntry { agora = $now.setZone('America/Bahia'); } catch (e) { agora = $now; }\nlet dataHora, hora;\ntry { dataHora = agora.toFormat('dd/LL/yyyy HH:mm'); hora = agora.hour; }\ncatch (e) { const d = new Date(); hora = (d.getUTCHours() + 21) % 24; dataHora = d.toISOString(); }\nconst comercial = (hora >= 6 && hora < 18) ? 'sim' : 'nao';\n// ---- Identificação da pessoa pelo telefone (com e sem 9o digito) ----\nconst tel = String(pw.telefone || '');\nconst autorizados = {\n  '5575992312986': 'Nando', '557592312986': 'Nando',\n  '5573988236527': 'Dalva', '557388236527': 'Dalva',\n  '5573981809680': 'Bruno', '557381809680': 'Bruno'\n};\nconst donos = { '5573991378301': 'Seu Fernando', '557391378301': 'Seu Fernando' };\nlet quemE = 'Cliente comum (lead) - siga o script normal de atendimento';\nlet autorizadoAlterar = 'nao';\nif (donos[tel]) {\n  quemE = 'Seu Fernando (dono do posto)';\n} else if (autorizados[tel]) {\n  quemE = autorizados[tel] + ' (equipe - numero autorizado a alterar precos)';\n  autorizadoAlterar = 'sim';\n}\n// ---- Canal da mensagem atual (texto x audio) ----\nconst instrucaoCanal = pw.instrucao_canal || 'A mensagem atual do cliente chegou por TEXTO.';\nconst ctxCanal = NL + NL + '=== CANAL DA MENSAGEM ATUAL ===' + NL + instrucaoCanal;\nconst ctxLoja = NL + NL + '=== PRECOS ATUAIS (fonte oficial, use exatamente estes; nunca invente) ===' + NL + linhas;\nconst ctxAmbiente = NL + NL + '=== CONTEXTO ATUAL ===' + NL +\n  'Data/hora (Bahia): ' + dataHora + NL +\n  'Horario comercial (06h-18h): ' + comercial + NL +\n  'Telefone do cliente: ' + tel + NL +\n  'Quem e: ' + quemE + NL +\n  'Autorizado a alterar precos: ' + autorizadoAlterar;\nconst conhecido = [];\nif (cli && cli.nome) conhecido.push('nome: ' + cli.nome);\nif (cli && cli.cidade) conhecido.push('cidade: ' + cli.cidade);\nif (cli && cli.interesse) conhecido.push('interesse: ' + cli.interesse);\nif (cli && cli.observacoes) conhecido.push('observacoes: ' + cli.observacoes);\nconst ctxCli = conhecido.length ? (NL + NL + '=== O QUE JA SABEMOS DESTE CLIENTE ===' + NL + conhecido.join(NL)) : '';\nsystem = system + ctxCanal + ctxLoja + ctxAmbiente + ctxCli;\nreturn [{ json: { system_prompt: system, mensagem: mensagemFinal, telefone: pw.telefone, last8: pw.last8 } }];"
+        },
+        "id": "8aa000fe-f4a7-4161-950e-46c391aeeb71",
+        "name": "Montar Contexto",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2400,
+          112
+        ]
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.mensagem }}",
+          "options": {
+            "systemMessage": "=- **Data/hora atual:** {{ `Hoje é ${['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'][new Date().getDay()]}, são ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}` }}, {{ $now.setZone('America/Sao_Paulo').format('dd/MM/yyyy') }}\n---\n\n{{ $json.system_prompt }}",
+            "enableStreaming": false
+          }
+        },
+        "id": "8ac001fa-71a9-4dce-a8dd-8a4dd056a6bc",
+        "name": "Nanda",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 3.1,
+        "position": [
+          2688,
+          112
+        ]
+      },
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "value": "gpt-4.1",
+            "mode": "list",
+            "cachedResultName": "gpt-4.1"
+          },
+          "builtInTools": {
+            "webSearch": {
+              "searchContextSize": "medium",
+              "country": "BR"
+            }
+          },
+          "options": {
+            "temperature": 0.4
+          }
+        },
+        "id": "0c6acf85-b814-49e9-8764-ae162efa1626",
+        "name": "Modelo Nanda",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.3,
+        "position": [
+          2624,
+          336
+        ],
+        "credentials": {
+          "openAiApi": {
+            "id": "CrvvQZknXJnFRwgc",
+            "name": "OpenAi Nando"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "={{ $('Montar Contexto').item.json.telefone }}",
+          "contextWindowLength": 50
+        },
+        "id": "eac194d7-920a-45a6-962e-6437f926af57",
+        "name": "Memoria Nanda",
+        "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+        "typeVersion": 1.4,
+        "position": [
+          2752,
+          336
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "IBtVCAaHmDGpnVnk",
+            "name": "Postgres Posto"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "description": "Use SOMENTE quando o cliente pedir para ALTERAR/atualizar o preco de um combustivel. Requer produto canonico (gasolina_comum, gasolina_aditivada, diesel_s10, diesel_s500) e valor. A autorizacao do numero e verificada automaticamente.",
+          "workflowId": {
+            "__rl": true,
+            "value": "4iPmsgfyPmhxUJfR",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/4iPmsgfyPmhxUJfR",
+            "cachedResultName": "atualizar_preco_posto"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "numero": "={{ $('Parse Webhook').item.json.telefone }}",
+              "produto": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('produto', 'Produto canonico: gasolina_comum, gasolina_aditivada, diesel_s10 ou diesel_s500') }}",
+              "valor": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('valor', 'Novo preco em reais, ex: 5.89') }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "numero",
+                "displayName": "numero",
+                "type": "string",
+                "display": true,
+                "required": false,
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "produto",
+                "displayName": "produto",
+                "type": "string",
+                "display": true,
+                "required": false,
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "valor",
+                "displayName": "valor",
+                "type": "string",
+                "display": true,
+                "required": false,
+                "canBeUsedToMatch": true
+              }
+            ]
+          }
+        },
+        "id": "69761a68-0ebb-471c-b629-47504ece76de",
+        "name": "atualizar_preco",
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          2880,
+          336
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "WcfPnypt1Rmi6sli",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/WcfPnypt1Rmi6sli",
+            "cachedResultName": "classificador_posto"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "telefone": "={{ $('Parse Webhook').item.json.telefone }}",
+              "last8": "={{ $('Parse Webhook').item.json.last8 }}",
+              "mensagem": "={{ $('Montar Contexto').item.json.mensagem }}",
+              "resposta": "={{ $('Nanda').first().json.output }}",
+              "cliente_json": "={{ JSON.stringify($('Buscar Cliente').item.json) }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "telefone",
+                "displayName": "telefone",
+                "type": "string",
+                "display": true,
+                "required": false,
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "last8",
+                "displayName": "last8",
+                "type": "string",
+                "display": true,
+                "required": false,
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "mensagem",
+                "displayName": "mensagem",
+                "type": "string",
+                "display": true,
+                "required": false,
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "resposta",
+                "displayName": "resposta",
+                "type": "string",
+                "display": true,
+                "required": false,
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "cliente_json",
+                "displayName": "cliente_json",
+                "type": "string",
+                "display": true,
+                "required": false,
+                "canBeUsedToMatch": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": true
+          },
+          "options": {
+            "waitForSubWorkflow": false
+          }
+        },
+        "id": "b879388b-ca2a-4514-bbd5-cfa8a7be50d5",
+        "name": "Classificador (Pos-Turno)",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.3,
+        "position": [
+          5120,
+          240
+        ]
+      },
+      {
+        "parameters": {},
+        "id": "7ac457fc-dd69-40fd-946e-0d4f795a0841",
+        "name": "Fim (nao ultima)",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          1728,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "set",
+          "key": "=sending:{{ $('Parse Webhook').first().json.telefone }}",
+          "value": "1",
+          "expire": true,
+          "ttl": 120
+        },
+        "id": "780c1ea4-d07b-4913-962e-a144ae672391",
+        "name": "REDIS SET LOCK",
+        "type": "n8n-nodes-base.redis",
+        "typeVersion": 1,
+        "position": [
+          3488,
+          256
+        ],
+        "credentials": {
+          "redis": {
+            "id": "uBgAIbBF16dqUpzr",
+            "name": "Redis account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "try {\n  const rawOutput = $('Nanda').first().json.output || $input.first().json.output || $input.first().json.text || '';\n  const MIN_DELAY = 1000;\n  const MAX_DELAY = 3500;\n  const PER_CHAR = 30;\n  const text = rawOutput.replace(/\\\\n/g, '\\n').replace(/\\r\\n/g, '\\n');\n\n  function detectFormat(s) {\n    const t = s.trim().toLowerCase();\n    if (/\\.(jpg|jpeg|png|gif|webp)(\\?|$)/.test(t)) return 'imagem';\n    if (/\\.(mp4|avi|mov|webm)(\\?|$)/.test(t)) return 'video';\n    if (/\\.(opus|mp3|wav|ogg|m4a)(\\?|$)/.test(t)) return 'audio';\n    return 'texto';\n  }\n  function stripIndicators(s) {\n    return s.replace(/\\[(Audio|Imagem|Video|PDF|Documento)\\]/gi, '').trim();\n  }\n  function calcDelay(len) {\n    return Math.min(MAX_DELAY, Math.max(MIN_DELAY, Math.round(len * PER_CHAR)));\n  }\n\n  let cleanText = text;\n\n  const blocoUnicoMap = {};\n  let blocoIdx = 0;\n  cleanText = cleanText.replace(/\"?\\[BLOCO_UNICO\\]([\\s\\S]*?)\\[\\/BLOCO_UNICO\\]\"?/g, (match, inner) => {\n    const placeholder = `__BLOCO_UNICO_${blocoIdx}__`;\n    blocoUnicoMap[placeholder] = inner.trim();\n    blocoIdx++;\n    return placeholder;\n  });\n\n  const captionMap = {};\n  let captionIdx = 0;\n  cleanText = cleanText.replace(/\\[CAPTION\\]([\\s\\S]*?)\\[\\/CAPTION\\]/g, (match, inner) => {\n    const placeholder = `__CAPTION_${captionIdx}__`;\n    captionMap[placeholder] = inner.trim();\n    captionIdx++;\n    return placeholder;\n  });\n\n  let rawParts;\n  if (cleanText.includes('---BLOCO---')) {\n    const blocos = cleanText.split('---BLOCO---');\n    rawParts = [];\n    for (const bloco of blocos) {\n      const trimmed = bloco.trim();\n      if (!trimmed) continue;\n      if (trimmed.startsWith('__BLOCO_UNICO_')) {\n        rawParts.push(trimmed);\n      } else {\n        const lines = trimmed.split(/\\n+/).map(s => s.trim()).filter(Boolean);\n        rawParts.push(...lines);\n      }\n    }\n  } else {\n    rawParts = cleanText.split(/\\n+/).map(s => s.trim()).filter(Boolean);\n  }\n\n  const result = [];\n  let i = 0;\n  while (i < rawParts.length) {\n    const part = rawParts[i];\n    if (blocoUnicoMap[part] !== undefined) {\n      const conteudo = blocoUnicoMap[part];\n      result.push({ json: { conteudo, formato: 'texto', delay: calcDelay(conteudo.length), dinamico: false } });\n      i++;\n      continue;\n    }\n    const cleaned = stripIndicators(part);\n    if (!cleaned) { i++; continue; }\n    if (cleaned.startsWith('[CAPTION]')) {\n      const captionText = cleaned.slice('[CAPTION]'.length).trim();\n      if (result.length > 0 && result[result.length - 1].json.formato === 'imagem') {\n        result[result.length - 1].json.caption = captionText;\n      }\n      i++;\n      continue;\n    }\n    const formato = cleaned.startsWith('http') ? detectFormat(cleaned) : 'texto';\n    if (formato === 'imagem' && i + 1 < rawParts.length) {\n      const nextPart = rawParts[i + 1].trim();\n      if (captionMap[nextPart] !== undefined) {\n        result.push({ json: { conteudo: cleaned, formato: 'imagem', caption: captionMap[nextPart], delay: 5000, dinamico: false } });\n        i += 2;\n        continue;\n      }\n    }\n    const delay = formato === 'texto' ? calcDelay(cleaned.length) : 5000;\n    result.push({ json: { conteudo: cleaned, formato, delay, dinamico: false } });\n    i++;\n  }\n\n    if (result.length === 0) {\n    result.push({ json: { conteudo: rawOutput || 'Opa! Como posso te ajudar? 😊', formato: 'texto', delay: MIN_DELAY, dinamico: false } });\n  }\n  // Proteção anti-flood: remove blocos duplicados e limita a quantidade\n  const vistos = new Set();\n  let finalResult = [];\n  for (const r of result) {\n    const chave = String(r.json.conteudo || '').trim();\n    if (chave && vistos.has(chave)) continue;\n    if (chave) vistos.add(chave);\n    finalResult.push(r);\n  }\n  const MAX_MSGS = 7;\n  if (finalResult.length > MAX_MSGS) finalResult = finalResult.slice(0, MAX_MSGS);\n  return finalResult;\n} catch(e) {\n  return [{ json: { conteudo: 'Erro ao processar resposta', formato: 'texto', delay: 3500, dinamico: false, erro: e.message } }];\n}"
+        },
+        "id": "96a70cec-30e1-4365-957f-ab9257129e40",
+        "name": "PREPARA RESPOSTA",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3712,
+          256
+        ]
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "id": "440253bb-fe8b-46dc-94a4-c41da9d88ffc",
+        "name": "LOOP DE ENVIO",
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          3936,
+          256
+        ]
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.formato }}",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "rightValue": "texto"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "texto"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.formato }}",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "rightValue": "audio"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "audio"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.formato }}",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "rightValue": "imagem"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "imagem"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.formato }}",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "rightValue": "video"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "video"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "83b6ed57-8cd5-4dee-a62e-e4e93ffcdd8c",
+        "name": "SWITCH FORMATO",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          4160,
+          656
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://thato.uazapi.com/send/text",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "token",
+                "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "number",
+                "value": "={{ $('Parse Webhook').first().json.telefone }}"
+              },
+              {
+                "name": "text",
+                "value": "={{ $json.conteudo }}"
+              },
+              {
+                "name": "delay",
+                "value": "={{ $json.delay }}"
+              },
+              {
+                "name": "linkPreview",
+                "value": "true"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "a1d3683c-695c-4f10-b813-9f577983ea47",
+        "name": "ENVIAR TEXTO",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          4400,
+          352
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://thato.uazapi.com/send/media",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "token",
+                "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "number",
+                "value": "={{ $('Parse Webhook').first().json.telefone }}"
+              },
+              {
+                "name": "type",
+                "value": "=ptt"
+              },
+              {
+                "name": "file",
+                "value": "={{ $json.conteudo }}"
+              },
+              {
+                "name": "delay",
+                "value": "={{ $json.delay }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "44e6d43a-37e1-4a9b-8eb5-39993595cf39",
+        "name": "ENVIAR AUDIO",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          4400,
+          528
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://thato.uazapi.com/send/media",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "token",
+                "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "number",
+                "value": "={{ $('Parse Webhook').first().json.telefone }}"
+              },
+              {
+                "name": "type",
+                "value": "=image"
+              },
+              {
+                "name": "file",
+                "value": "={{ $json.conteudo }}"
+              },
+              {
+                "name": "text",
+                "value": "={{ $json.caption }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "e4de8f55-2ce6-4885-a530-47feb9a97591",
+        "name": "ENVIAR IMAGEM",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          4400,
+          704
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://thato.uazapi.com/send/media",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "token",
+                "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "number",
+                "value": "={{ $('Parse Webhook').first().json.telefone }}"
+              },
+              {
+                "name": "type",
+                "value": "=video"
+              },
+              {
+                "name": "file",
+                "value": "={{ $json.conteudo }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "f040e297-9422-4a6b-96d1-e47887c5e919",
+        "name": "ENVIAR VIDEO",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          4400,
+          880
+        ]
+      },
+      {
+        "parameters": {
+          "amount": 1
+        },
+        "id": "c8b30f8f-c897-4b38-9584-c2d52ca3f92b",
+        "name": "AGUARDAR DELAY",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          4656,
+          704
+        ],
+        "webhookId": "nanda-wait-delay"
+      },
+      {
+        "parameters": {
+          "fieldsToAggregate": {
+            "fieldToAggregate": [
+              {}
+            ]
+          },
+          "options": {}
+        },
+        "id": "18cf86d7-12e0-43b5-9c86-463e6c3d298a",
+        "name": "Aggregate",
+        "type": "n8n-nodes-base.aggregate",
+        "typeVersion": 1,
+        "position": [
+          4624,
+          240
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "delete",
+          "key": "=sending:{{ $('Parse Webhook').first().json.telefone }}"
+        },
+        "id": "a7932bbd-4322-427c-b835-bb3163050de5",
+        "name": "REDIS DEL LOCK",
+        "type": "n8n-nodes-base.redis",
+        "typeVersion": 1,
+        "position": [
+          4912,
+          240
+        ],
+        "credentials": {
+          "redis": {
+            "id": "uBgAIbBF16dqUpzr",
+            "name": "Redis account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "dataToSave": {
+            "values": [
+              {
+                "key": "nome",
+                "value": "={{ $json.nome }}"
+              },
+              {
+                "key": "telefone",
+                "value": "={{ $json.telefone }}"
+              },
+              {
+                "key": "mensagem",
+                "value": "={{ $json.mensagem }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executionData",
+        "typeVersion": 1.1,
+        "position": [
+          -1904,
+          0
+        ],
+        "id": "70792009-ff7e-455e-b322-210726951634",
+        "name": "Execution Data"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $json.tipo_mensagem }}",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                },
+                "rightValue": "audiomessage"
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "9d027744-230e-42d3-840d-151e625d7b97",
+        "name": "É AUDIO?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -1200,
+          112
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "=https://thato.uazapi.com/message/download",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "token",
+                "value": "=698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "id",
+                "value": "={{ $json.message_id }}"
+              },
+              {
+                "name": "return_base64",
+                "value": "true"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "7fc4320b-3d7f-4811-bb3f-f55622106731",
+        "name": "BAIXAR AUDIO",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -960,
+          -160
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "toBinary",
+          "sourceProperty": "base64Data",
+          "options": {
+            "fileName": "audio.ogg",
+            "mimeType": "audio/ogg"
+          }
+        },
+        "id": "49bdc0d6-64dc-4161-9a64-eb5c82e0729b",
+        "name": "CONVERTER AUDIO",
+        "type": "n8n-nodes-base.convertToFile",
+        "typeVersion": 1.1,
+        "position": [
+          -720,
+          -160
+        ]
+      },
+      {
+        "parameters": {
+          "resource": "audio",
+          "operation": "transcribe",
+          "options": {}
+        },
+        "id": "6ee5d23a-0cc5-4f9a-bebd-ea9d65512423",
+        "name": "TRANSCREVER AUDIO",
+        "type": "@n8n/n8n-nodes-langchain.openAi",
+        "typeVersion": 1.6,
+        "position": [
+          -480,
+          -160
+        ],
+        "credentials": {
+          "openAiApi": {
+            "id": "CrvvQZknXJnFRwgc",
+            "name": "OpenAi Nando"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "try {\n  const text = $input.first().json.text || '(áudio não transcrito)';\n  const src = $('Parse Webhook').first().json;\n  return [{ json: { telefone: src.telefone, nome: src.nome, mensagem: text, tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];\n} catch(e) {\n  const src = $('Parse Webhook').first().json;\n  return [{ json: { telefone: src.telefone, nome: src.nome, mensagem: '(áudio)', tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];\n}"
+        },
+        "id": "aecca2e4-3ebd-4650-ab80-3c2d1ed919e7",
+        "name": "MONTAR MSG AUDIO",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -208,
+          -160
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $json.tipo_mensagem }}",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEquals"
+                },
+                "rightValue": "imagemessage",
+                "id": "img-cond-1"
+              }
+            ],
+            "combinator": "and"
+          },
+          "looseTypeValidation": true,
+          "options": {}
+        },
+        "id": "92bdbf81-0c5c-4d0f-9bb5-5e05f8c59e29",
+        "name": "É IMAGEM?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -1024,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "=https://thato.uazapi.com/message/download",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "token",
+                "value": "=698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "id",
+                "value": "={{ $json.message_id }}"
+              },
+              {
+                "name": "return_base64",
+                "value": "true"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "0c16dd9f-40f9-4303-bd87-4d0f641fe372",
+        "name": "BAIXAR IMAGEM",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -960,
+          368
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "toBinary",
+          "sourceProperty": "base64Data",
+          "options": {
+            "fileName": "imagem.jpg",
+            "mimeType": "image/jpeg"
+          }
+        },
+        "id": "e2f94ec6-8649-48be-968a-fa980ff96ac1",
+        "name": "CONVERTER IMAGEM",
+        "type": "n8n-nodes-base.convertToFile",
+        "typeVersion": 1.1,
+        "position": [
+          -720,
+          368
+        ]
+      },
+      {
+        "parameters": {
+          "resource": "image",
+          "operation": "analyze",
+          "modelId": {
+            "__rl": true,
+            "value": "gpt-4o-mini",
+            "mode": "list",
+            "cachedResultName": "GPT-4O-MINI"
+          },
+          "text": "Descreva o conteúdo desta imagem em português. Se houver texto visível (placa, nota, cupom, layout de preço), transcreva-o. Seja objetivo.",
+          "inputType": "base64",
+          "options": {}
+        },
+        "id": "5f0a7889-37de-4a29-80ca-4ecabed41c1f",
+        "name": "DESCREVER IMAGEM",
+        "type": "@n8n/n8n-nodes-langchain.openAi",
+        "typeVersion": 1.6,
+        "position": [
+          -480,
+          368
+        ],
+        "credentials": {
+          "openAiApi": {
+            "id": "CrvvQZknXJnFRwgc",
+            "name": "OpenAi Nando"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "try {\n  const desc = $input.first().json.content || $input.first().json.text || '(imagem)';\n  const src = $('Parse Webhook').first().json;\n  return [{ json: { telefone: src.telefone, nome: src.nome, mensagem: '[Imagem] ' + desc, tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];\n} catch(e) {\n  const src = $('Parse Webhook').first().json;\n  return [{ json: { telefone: src.telefone, nome: src.nome, mensagem: '(imagem)', tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];\n}"
+        },
+        "id": "1252471d-e6fb-44ee-9426-8901b865f15f",
+        "name": "MONTAR MSG IMAGEM",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -208,
+          368
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $json.tipo_mensagem }}",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                },
+                "rightValue": "stickermessage"
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "a77be690-44a0-4a2a-8aa4-f89da95efff1",
+        "name": "É FIGURINHA?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -1104,
+          608
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "=https://thato.uazapi.com/message/download",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "token",
+                "value": "=698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "id",
+                "value": "={{ $json.message_id }}"
+              },
+              {
+                "name": "return_base64",
+                "value": "true"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "53854ed6-251f-4e78-8bdf-d8f9a42dd467",
+        "name": "BAIXAR FIGURINHA",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -864,
+          608
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "toBinary",
+          "sourceProperty": "base64Data",
+          "options": {
+            "fileName": "figurinha.webp",
+            "mimeType": "image/webp"
+          }
+        },
+        "id": "cd0d8251-885a-46fa-9b0d-2bd3ecf43464",
+        "name": "CONVERTER FIGURINHA",
+        "type": "n8n-nodes-base.convertToFile",
+        "typeVersion": 1.1,
+        "position": [
+          -624,
+          608
+        ]
+      },
+      {
+        "parameters": {
+          "resource": "image",
+          "operation": "analyze",
+          "modelId": {
+            "__rl": true,
+            "value": "gpt-4o-mini",
+            "mode": "list",
+            "cachedResultName": "GPT-4O-MINI"
+          },
+          "text": "Descreva em português, de forma breve, esta figurinha (sticker) do WhatsApp: o que mostra, a emoção/intenção e, se houver texto, transcreva-o.",
+          "inputType": "base64",
+          "options": {}
+        },
+        "id": "fb970ca3-87a4-4222-a8be-267016d91b78",
+        "name": "DESCREVER FIGURINHA",
+        "type": "@n8n/n8n-nodes-langchain.openAi",
+        "typeVersion": 1.6,
+        "position": [
+          -416,
+          608
+        ],
+        "credentials": {
+          "openAiApi": {
+            "id": "CrvvQZknXJnFRwgc",
+            "name": "OpenAi Nando"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "try {\n  const desc = $input.first().json.content || $input.first().json.text || '(figurinha)';\n  const src = $('Parse Webhook').first().json;\n  return [{ json: { telefone: src.telefone, nome: src.nome, mensagem: '[Figurinha] ' + desc, tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];\n} catch(e) {\n  const src = $('Parse Webhook').first().json;\n  return [{ json: { telefone: src.telefone, nome: src.nome, mensagem: '[Figurinha]', tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];\n}"
+        },
+        "id": "d431ab12-5898-46e5-87dd-663e83f83022",
+        "name": "MONTAR MSG FIGURINHA",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -192,
+          608
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $json.tipo_mensagem }}",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                },
+                "rightValue": "documentmessage"
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "016e9f8f-33bb-4cf6-aad1-d123d10bc62f",
+        "name": "É DOCUMENTO?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -1072,
+          864
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "=https://thato.uazapi.com/message/download",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "token",
+                "value": "=698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "id",
+                "value": "={{ $json.message_id }}"
+              },
+              {
+                "name": "return_base64",
+                "value": "true"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "64a036ec-7493-48c5-bed5-9c4035a2c638",
+        "name": "BAIXAR DOCUMENTO",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -848,
+          864
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "operation": "toBinary",
+          "sourceProperty": "base64Data",
+          "options": {
+            "fileName": "documento.pdf",
+            "mimeType": "application/pdf"
+          }
+        },
+        "id": "c97b90f4-8c96-4fe6-8abf-21092315235f",
+        "name": "CONVERTER DOCUMENTO",
+        "type": "n8n-nodes-base.convertToFile",
+        "typeVersion": 1.1,
+        "position": [
+          -624,
+          864
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "operation": "pdf",
+          "options": {
+            "joinPages": true
+          }
+        },
+        "id": "a3fecf11-8c1d-4b82-8f85-259ea1915fc5",
+        "name": "EXTRAIR DOCUMENTO",
+        "type": "n8n-nodes-base.extractFromFile",
+        "typeVersion": 1.1,
+        "position": [
+          -416,
+          864
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const src = $('Parse Webhook').first().json;\nlet t = '';\ntry { t = String($input.first().json.text || '').trim(); } catch(e) { t = ''; }\nif (t.length > 1500) t = t.slice(0, 1500) + '…';\nconst msg = t\n  ? ('[Documento] Conteúdo extraído:\\n' + t)\n  : '[Documento] O cliente enviou um documento que não consegui ler aqui. Peça gentilmente do que se trata, ou as informações por texto/foto.';\nreturn [{ json: { telefone: src.telefone, nome: src.nome, mensagem: msg, tipo_mensagem: src.tipo_mensagem, message_id: src.message_id, from_me: src.from_me, last8: src.last8 } }];"
+        },
+        "id": "29c474f7-d7ef-4eef-9ffd-956f736632d7",
+        "name": "MONTAR MSG DOCUMENTO",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -192,
+          864
+        ]
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "mt-assign-1",
+                "name": "mensagem",
+                "value": "={{ $json.mensagem }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          160,
+          112
+        ],
+        "id": "18529f43-6d43-4276-827f-e8896950b967",
+        "name": "Mensagem Tratada"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $('Parse Webhook').item.json.tipo_mensagem }}",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                },
+                "rightValue": "audiomessage"
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "63a612f9-b6ce-4e58-ae19-6ba72d1cd8b6",
+        "name": "Responder em Áudio?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          3168,
+          112
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "let out = String($('Nanda').first().json.output || '');\nout = out.split('[BLOCO_UNICO]').join('').split('[/BLOCO_UNICO]').join('').split('**').join('').split('*').join('');\nout = out.split(String.fromCharCode(13)).join(' ').split(String.fromCharCode(10)).join(' ');\nwhile (out.indexOf('  ') !== -1) out = out.split('  ').join(' ');\nout = out.trim();\nif (out.length > 700) out = out.slice(0, 700);\nconst NL = String.fromCharCode(10);\nconst profile = 'Voz divertida com sotaque do interior da Bahia, no Brasil';\nconst director = 'Estilo: tom claro, alegre e acolhedor (sorriso na voz); ritmo rapido e energetico, sem pausas longas.';\nconst tts_prompt = 'Leia a transcricao a seguir conforme o perfil de audio e a nota de direcao.' + NL + NL + '# Audio Profile' + NL + profile + NL + NL + '# Director note' + NL + director + NL + NL + '## Transcript:' + NL + out;\nreturn [{ json: { tts_prompt: tts_prompt, telefone: $('Parse Webhook').first().json.telefone } }];"
+        },
+        "id": "7d778a7a-68c5-4894-9875-9934bd7a7f6c",
+        "name": "Preparar Texto TTS",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3504,
+          -128
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-goog-api-key",
+                "value": "AIzaSyBTSCzIHP9m5Xfh_F56XReOUyfFP5sV7xI"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { \"contents\": [ { \"role\": \"user\", \"parts\": [ { \"text\": $json.tts_prompt } ] } ], \"generationConfig\": { \"temperature\": 1, \"responseModalities\": [\"AUDIO\"], \"speechConfig\": { \"voiceConfig\": { \"prebuiltVoiceConfig\": { \"voiceName\": \"Autonoe\" } } } } } }}",
+          "options": {
+            "timeout": 60000
+          }
+        },
+        "id": "cfad6b18-9a69-4f93-94a6-bc9e10e86692",
+        "name": "Gemini TTS",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3920,
+          -128
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const resp = $input.first().json;\nlet part = {};\ntry { part = resp.candidates[0].content.parts[0].inlineData; } catch (e) { part = {}; }\nconst b64 = part.data || '';\nconst mime = part.mimeType || 'audio/L16;rate=24000';\nlet rate = 24000, bits = 16;\nfor (const s of mime.split(';')) {\n  const seg = s.trim();\n  if (seg.toLowerCase().indexOf('rate=') === 0) { const v = parseInt(seg.split('=')[1]); if (v) rate = v; }\n  if (seg.indexOf('audio/L') === 0) { const v = parseInt(seg.split('L')[1]); if (v) bits = v; }\n}\nif (!b64) { return [{ json: { erro: 'TTS sem audio', telefone: $('Parse Webhook').first().json.telefone } }]; }\nconst pcm = Buffer.from(b64, 'base64');\nconst numChannels = 1;\nconst bytesPerSample = bits / 8;\nconst blockAlign = numChannels * bytesPerSample;\nconst byteRate = rate * blockAlign;\nconst dataSize = pcm.length;\nconst header = Buffer.alloc(44);\nheader.write('RIFF', 0);\nheader.writeUInt32LE(36 + dataSize, 4);\nheader.write('WAVE', 8);\nheader.write('fmt ', 12);\nheader.writeUInt32LE(16, 16);\nheader.writeUInt16LE(1, 20);\nheader.writeUInt16LE(numChannels, 22);\nheader.writeUInt32LE(rate, 24);\nheader.writeUInt32LE(byteRate, 28);\nheader.writeUInt16LE(blockAlign, 32);\nheader.writeUInt16LE(bits, 34);\nheader.write('data', 36);\nheader.writeUInt32LE(dataSize, 40);\nconst wav = Buffer.concat([header, pcm]);\nconst wavB64 = wav.toString('base64');\nreturn [{ json: { telefone: $('Parse Webhook').first().json.telefone, audioBase64: wavB64, dataUri: 'data:audio/wav;base64,' + wavB64 } }];"
+        },
+        "id": "e9d659cc-f7f0-4fea-844d-4f438917f8e2",
+        "name": "PCM para WAV",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4272,
+          -128
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://thato.uazapi.com/send/media",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "token",
+                "value": "698fc294-7c4d-4a29-b3ae-48ecdefdfcef"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "number",
+                "value": "={{ $json.telefone }}"
+              },
+              {
+                "name": "type",
+                "value": "ptt"
+              },
+              {
+                "name": "file",
+                "value": "={{ $json.dataUri }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "52be9983-9309-44e8-a916-7839b4e8eae8",
+        "name": "ENVIAR AUDIO (TTS)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          5088,
+          -128
+        ]
+      }
+    ],
+    "connections": {
+      "Receber Mensagem": {
+        "main": [
+          [
+            {
+              "node": "Parse Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Webhook": {
+        "main": [
+          [
+            {
+              "node": "Execution Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Eh from_me?": {
+        "main": [
+          [
+            {
+              "node": "Pausar Contato",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Eh /delete?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Eh /delete?": {
+        "main": [
+          [
+            {
+              "node": "Limpar Pausa",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "É AUDIO?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Limpar Pausa": {
+        "main": [
+          [
+            {
+              "node": "Limpar Memoria",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Limpar Memoria": {
+        "main": [
+          [
+            {
+              "node": "Avisar Reset",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Checar Pausa": {
+        "main": [
+          [
+            {
+              "node": "Esta pausado?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Esta pausado?": {
+        "main": [
+          [
+            {
+              "node": "Fim (pausado)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Marcar Ultima",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Marcar Ultima": {
+        "main": [
+          [
+            {
+              "node": "Aguardar Debounce",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aguardar Debounce": {
+        "main": [
+          [
+            {
+              "node": "Ler Ultima",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Ler Ultima": {
+        "main": [
+          [
+            {
+              "node": "Sou a ultima?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Sou a ultima?": {
+        "main": [
+          [
+            {
+              "node": "Buscar Cliente",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Fim (nao ultima)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Buscar Cliente": {
+        "main": [
+          [
+            {
+              "node": "Pegar Prompt",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Pegar Prompt": {
+        "main": [
+          [
+            {
+              "node": "Pegar Precos",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Pegar Precos": {
+        "main": [
+          [
+            {
+              "node": "Montar Contexto",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Montar Contexto": {
+        "main": [
+          [
+            {
+              "node": "Nanda",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Nanda": {
+        "main": [
+          [
+            {
+              "node": "Responder em Áudio?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Modelo Nanda": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Nanda",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Memoria Nanda": {
+        "ai_memory": [
+          [
+            {
+              "node": "Nanda",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "atualizar_preco": {
+        "ai_tool": [
+          [
+            {
+              "node": "Nanda",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "REDIS SET LOCK": {
+        "main": [
+          [
+            {
+              "node": "PREPARA RESPOSTA",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PREPARA RESPOSTA": {
+        "main": [
+          [
+            {
+              "node": "LOOP DE ENVIO",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "LOOP DE ENVIO": {
+        "main": [
+          [
+            {
+              "node": "Aggregate",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "SWITCH FORMATO",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "SWITCH FORMATO": {
+        "main": [
+          [
+            {
+              "node": "ENVIAR TEXTO",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "ENVIAR AUDIO",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "ENVIAR IMAGEM",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "ENVIAR VIDEO",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ENVIAR TEXTO": {
+        "main": [
+          [
+            {
+              "node": "AGUARDAR DELAY",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ENVIAR AUDIO": {
+        "main": [
+          [
+            {
+              "node": "AGUARDAR DELAY",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ENVIAR IMAGEM": {
+        "main": [
+          [
+            {
+              "node": "AGUARDAR DELAY",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ENVIAR VIDEO": {
+        "main": [
+          [
+            {
+              "node": "AGUARDAR DELAY",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AGUARDAR DELAY": {
+        "main": [
+          [
+            {
+              "node": "LOOP DE ENVIO",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aggregate": {
+        "main": [
+          [
+            {
+              "node": "REDIS DEL LOCK",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "REDIS DEL LOCK": {
+        "main": [
+          [
+            {
+              "node": "Classificador (Pos-Turno)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execution Data": {
+        "main": [
+          [
+            {
+              "node": "Eh from_me?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "É AUDIO?": {
+        "main": [
+          [
+            {
+              "node": "BAIXAR AUDIO",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "É IMAGEM?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BAIXAR AUDIO": {
+        "main": [
+          [
+            {
+              "node": "CONVERTER AUDIO",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "CONVERTER AUDIO": {
+        "main": [
+          [
+            {
+              "node": "TRANSCREVER AUDIO",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "TRANSCREVER AUDIO": {
+        "main": [
+          [
+            {
+              "node": "MONTAR MSG AUDIO",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "MONTAR MSG AUDIO": {
+        "main": [
+          [
+            {
+              "node": "Mensagem Tratada",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "É IMAGEM?": {
+        "main": [
+          [
+            {
+              "node": "É FIGURINHA?",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "BAIXAR IMAGEM",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BAIXAR IMAGEM": {
+        "main": [
+          [
+            {
+              "node": "CONVERTER IMAGEM",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "CONVERTER IMAGEM": {
+        "main": [
+          [
+            {
+              "node": "DESCREVER IMAGEM",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "DESCREVER IMAGEM": {
+        "main": [
+          [
+            {
+              "node": "MONTAR MSG IMAGEM",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "MONTAR MSG IMAGEM": {
+        "main": [
+          [
+            {
+              "node": "Mensagem Tratada",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "É FIGURINHA?": {
+        "main": [
+          [
+            {
+              "node": "BAIXAR FIGURINHA",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "É DOCUMENTO?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BAIXAR FIGURINHA": {
+        "main": [
+          [
+            {
+              "node": "CONVERTER FIGURINHA",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "CONVERTER FIGURINHA": {
+        "main": [
+          [
+            {
+              "node": "DESCREVER FIGURINHA",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "DESCREVER FIGURINHA": {
+        "main": [
+          [
+            {
+              "node": "MONTAR MSG FIGURINHA",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "MONTAR MSG FIGURINHA": {
+        "main": [
+          [
+            {
+              "node": "Mensagem Tratada",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "É DOCUMENTO?": {
+        "main": [
+          [
+            {
+              "node": "BAIXAR DOCUMENTO",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Mensagem Tratada",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BAIXAR DOCUMENTO": {
+        "main": [
+          [
+            {
+              "node": "CONVERTER DOCUMENTO",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "CONVERTER DOCUMENTO": {
+        "main": [
+          [
+            {
+              "node": "EXTRAIR DOCUMENTO",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "EXTRAIR DOCUMENTO": {
+        "main": [
+          [
+            {
+              "node": "MONTAR MSG DOCUMENTO",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "MONTAR MSG DOCUMENTO": {
+        "main": [
+          [
+            {
+              "node": "Mensagem Tratada",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Mensagem Tratada": {
+        "main": [
+          [
+            {
+              "node": "Checar Pausa",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Responder em Áudio?": {
+        "main": [
+          [
+            {
+              "node": "Preparar Texto TTS",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "REDIS SET LOCK",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Preparar Texto TTS": {
+        "main": [
+          [
+            {
+              "node": "Gemini TTS",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Gemini TTS": {
+        "main": [
+          [
+            {
+              "node": "PCM para WAV",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PCM para WAV": {
+        "main": [
+          [
+            {
+              "node": "ENVIAR AUDIO (TTS)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ENVIAR AUDIO (TTS)": {
+        "main": [
+          [
+            {
+              "node": "Classificador (Pos-Turno)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "FERNANDO CARVALHO",
+    "name": "Version ad6cb47d",
+    "description": "",
+    "autosaved": true,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-06-14T21:38:33.130Z",
+        "id": 384,
+        "workflowId": "KHrZrnx9PAZfkS3F",
+        "versionId": "ad6cb47d-4db8-4080-a99e-c73b5fde5744",
+        "event": "activated",
+        "userId": "18fd1565-d45e-4c6e-b006-682b90e17be0"
+      }
+    ]
+  }
+}

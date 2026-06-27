@@ -1,0 +1,44 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select case when coalesce((select pausar_ia from clientes where last_8 = $1 limit 1), false) then 'sim' else 'nao' end as pausado",
+        "options": { "queryReplacement": "={{ $('Parse Webhook').item.json.last8 }}" }
+      },
+      "id": "pausa-0001-checar",
+      "name": "Checar Pausa",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [384, 112],
+      "credentials": { "postgres": { "id": "IBtVCAaHmDGpnVnk", "name": "Postgres Posto" } }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update clientes set pausar_ia = true, atualizado_em = now() where last_8 = $1",
+        "options": { "queryReplacement": "={{ $json.last8 }}" }
+      },
+      "id": "pausa-0002-pausar",
+      "name": "Pausar Contato",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [-64, -80],
+      "credentials": { "postgres": { "id": "IBtVCAaHmDGpnVnk", "name": "Postgres Posto" } }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update clientes set pausar_ia = false, atualizado_em = now() where last_8 = $1",
+        "options": { "queryReplacement": "={{ $json.last8 }}" }
+      },
+      "id": "pausa-0003-limpar",
+      "name": "Limpar Pausa",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [160, -80],
+      "credentials": { "postgres": { "id": "IBtVCAaHmDGpnVnk", "name": "Postgres Posto" } }
+    }
+  ],
+  "connections": {}
+}
