@@ -21,6 +21,9 @@ out/
 token_api_n8n.txt
 *.token.txt
 
+# Backups de workflow do n8n (dumps locais; contêm token inline)
+nanda-backup-*.json
+
 # Logs
 *.log
 npm-debug.log*
